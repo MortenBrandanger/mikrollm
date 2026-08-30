@@ -1,6 +1,9 @@
-/* Bruksmodus: samme stegformat som treningen – fire små steg,
-   der det siste er en lekeplass man blir værende i.
-   Parameterne er frosset; data flyter bare fremover. */
+/* Bruksmodus: samme rørledning som i treningen, gjennomgått på nytt som
+   åtte små steg – ett konsept per skjerm – med frosne parametere, og
+   temperatur + sampling (lekeplassen) til slutt.
+
+   Detaljnivået (ML.state.level) styrer hvor mye tall som vises:
+     0 = Enkelt, 1 = Med tall, 2 = Full utregning. */
 (function () {
   const ML = globalThis.ML;
   const R = () => ML.R;
@@ -9,20 +12,12 @@
 
   function ensureState() {
     if (!ML.state.use)
-      ML.state.use = { ctx: [0, 1], temp: 1.0, sampled: null, draw: null, open: {} };
+      ML.state.use = { ctx: [0, 1], temp: 1.0, sampled: null, draw: null };
     return ML.state.use;
   }
 
-  function pipeCard(id, title, quick, bodyHTML) {
-    const u = ensureState();
-    return `<div class="pipe-card ${u.open[id] ? "open" : ""}">
-      <button class="pipe-head" data-pipehead="${id}">
-        <span class="caret">${u.open[id] ? "▼" : "▶"}</span> ${title}
-        <span class="quick">${quick}</span>
-      </button>
-      <div class="pipe-body">${bodyHTML}</div>
-    </div>`;
-  }
+  const ctxText = () => ensureState().ctx.map((t) => W(t)).join(" ");
+  const tr = () => ML.state.model.forward(ensureState().ctx);
 
   function tempRow(idPrefix) {
     const u = ensureState();
@@ -82,8 +77,8 @@
           ${trained ? "" : `<p style="padding:10px 14px;border-radius:10px;background:#fffaf0;border:1.5px solid #e7c78a">
             ⚠️ <b>Du har ikke trent modellen ennå</b> – den vil gjette i blinde. Lov å prøve likevel,
             men treningsmodusen er et bedre sted å starte.</p>`}
-          <p class="lede">Å <i>bruke</i> modellen – det som skjer når du chatter med en LLM – er
-          nøyaktig samme fremoverpass som under treningen. Forskjellen er hva som skjer etterpå:</p>
+          <p class="lede">Å <i>bruke</i> modellen – det som skjer når du chatter med en LLM – er samme
+          maskin som i treningen. Forskjellen er hva som skjer etter prediksjonen:</p>
           <div class="compare">
             <div class="cmp-col train">
               <h4>Trening</h4>
@@ -103,59 +98,129 @@
                 <li>🔒 <b>ingen parametere endres</b></li>
               </ol>
             </div>
-          </div>`;
+          </div>
+          <p class="note">Vi går gjennom rørledningen en gang til, steg for steg – nå med den ferdig
+          trente modellen.</p>`;
       },
     },
 
     {
-      id: "forward",
-      title: "Samme maskin, samme fremoverpass",
-      diagram: ["dg-tokens", "dg-emb", "dg-layer", "dg-attn", "dg-ffn", "dg-logits"],
+      id: "tokens",
+      title: "Teksten deles i tokens",
+      diagram: ["dg-text", "dg-tokens"],
+      render() {
+        const u = ensureState();
+        return `
+          <p class="lede">Teksten <b>«${ctxText()}»</b> deles opp i ${u.ctx.length} tokens:</p>
+          <div class="chiprow">
+            <span class="chip plain">«${ctxText()}»</span>
+            <span class="arrow-inline">→</span>
+            ${u.ctx.map((t) => R().tokenChip(W(t), t)).join(" ")}
+          </div>
+          <p>Nøyaktig som i treningen: deterministisk oppslag, ingen parametere involvert.</p>`;
+      },
+    },
+
+    {
+      id: "emb",
+      title: "Tokens blir tall – og nå er tallene lærte",
+      diagram: ["dg-emb"],
       render() {
         const u = ensureState();
         const m = ML.state.model;
-        const tr = m.forward(u.ctx);
-        const last = u.ctx.length - 1;
-        const A = tr.alphas[last];
+        const t0 = tr();
         return `
-          <p class="lede">Input er <b>«${u.ctx.map((t) => W(t)).join(" ")}»</b> (den endrer du i
-          lekeplassen på siste steg). Her er hele rørledningen – klikk deg inn der du vil se tallene:</p>
-          ${pipeCard("tok", "1 · Tokens", u.ctx.map((t) => `${W(t)}#${t}`).join(" "), `
-            <div class="chiprow">${u.ctx.map((t) => R().tokenChip(W(t), t)).join(" ")}</div>
-            <p class="note">Deterministisk oppslag – ingen parametere.</p>`)}
-          ${pipeCard("emb", "2 · Embeddinger + posisjon", `${u.ctx.length} × ${ML.D} tall`, `
+          <p class="lede">Hver token slås opp i embedding-tabellen og blir en vektor. Forskjellen fra
+          før treningen: verdiene er ikke lenger tilfeldige – <b>dette er det treningen skapte</b>.</p>
+          <div style="margin:12px 0">
+            ${u.ctx.map((t) => `
+              <div class="chiprow">
+                ${R().tokenChip(W(t), t)}
+                <span class="arrow-inline">→</span>
+                ${R().vecHTML(m.E[t], "param")}
+              </div>`).join("")}
+          </div>
+          ${lv(1) ? `
+            <p class="note">Pluss posisjonsvektor, som før:</p>
             ${u.ctx.map((t, i) => `<div class="mathline">x<sub>${W(t)}</sub> = E[${W(t)}] + P[${i}] =
-              ${R().vecHTML(m.E[t], "param")} + ${R().vecHTML(m.P[i], "param")} = ${R().vecHTML(tr.x[i], "data")}</div>`).join("")}
-            <p class="note">🟠 De oransje verdiene er nå <b>lærte</b> – dette er det treningen skapte.</p>`)}
-          ${pipeCard("attn", "3 · Attention", `«${W(u.ctx[last])}» ser mest på «${W(u.ctx[A.indexOf(Math.max(...A))])}»`, `
-            <p>Siste token henter informasjon fra hele konteksten:</p>
-            <div class="attn-weights">
-              ${u.ctx.map((t, j) => `
-                <div class="aw-row">
-                  <div><b>${W(t)}</b></div>
-                  <div class="aw-bar"><div class="aw-fill" style="width:${A[j] * 100}%"></div></div>
-                  <div class="aw-pct">${R().pct(A[j])}</div>
-                </div>`).join("")}
-            </div>
-            <div class="mathline">z = ${u.ctx.map((t, j) => `${R().pct(A[j], 0)}·v<sub>${W(t)}</sub>`).join(" + ")} = ${R().vecHTML(tr.z[last], "data")}</div>
-            <div class="mathline">h = x + z·W_O = ${R().vecHTML(tr.h[last], "data")}</div>`)}
-          ${pipeCard("ffn", "4 · Feed forward", `→ y = ${tr.y[last].map((v) => R().fmt(v)).join(", ")}`, `
-            <div class="mathline">f = ReLU(h·W₁)·W₂ = ${R().vecHTML(tr.f[last], "data")}</div>
-            <div class="mathline">y = h + f = ${R().vecHTML(tr.y[last], "data")}</div>`)}
-          ${pipeCard("logits", "5 · Logits", tr.logits.map((l) => R().fmt(l, 1)).join(" · "), `
-            <div class="mathline">logits = y · W_U</div>
-            ${ML.VOCAB.map((w, i) => `<div class="mathline">logit(${w}) = ${lv(2) ? R().dotCalc(tr.y[last], m.Wu.map((r) => r[i])) : `<span class="res">${R().fmt(tr.logits[i])}</span>`}</div>`).join("")}`)}
-          <p class="note">Legg merke til hva som <i>ikke</i> er her: ingen loss, ingen gradienter,
-          ingen oppdatering. Bare regning fremover.</p>`;
+              ${R().vecHTML(m.E[t], "param")} + ${R().vecHTML(m.P[i], "param")} = ${R().vecHTML(t0.x[i], "data")}</div>`).join("")}` : ""}`;
       },
-      wire(host) {
+    },
+
+    {
+      id: "attn",
+      title: "Attention – tokens ser på hverandre",
+      diagram: ["dg-layer", "dg-attn"],
+      render() {
         const u = ensureState();
-        host.querySelectorAll("[data-pipehead]").forEach((b) =>
-          b.addEventListener("click", () => {
-            u.open[b.dataset.pipehead] = !u.open[b.dataset.pipehead];
-            renderUse(false);
-          })
-        );
+        const t0 = tr();
+        const last = u.ctx.length - 1;
+        const A = t0.alphas[last];
+        return `
+          <p class="lede">Siste token, «${W(u.ctx[last])}», henter informasjon fra hele teksten – med
+          de lærte Q-, K- og V-matrisene:</p>
+          <div class="attn-weights">
+            ${u.ctx.map((t, j) => `
+              <div class="aw-row">
+                <div><b>${W(t)}</b></div>
+                <div class="aw-bar"><div class="aw-fill" style="width:${A[j] * 100}%"></div></div>
+                <div class="aw-pct">${R().pct(A[j])}</div>
+              </div>`).join("")}
+          </div>
+          ${lv(1) ? `
+            <div class="mathline">z = ${u.ctx.map((t, j) => `${R().pct(A[j], 0)}·v<sub>${W(t)}</sub>`).join(" + ")} = ${R().vecHTML(t0.z[last], "data")}</div>
+            <div class="mathline">h = x + z·W_O = ${R().vecHTML(t0.h[last], "data")}</div>` : ""}
+          ${lv(2) ? u.ctx.map((t, j) => `
+            <div class="mathline note">score(${W(u.ctx[last])} → ${W(t)}) = q·k/√2 = (${R().dotCalc(t0.q[last], t0.k[j])}) / 1.41 = <span class="res">${R().fmt(t0.scores[last][j])}</span></div>`).join("") : ""}`;
+      },
+    },
+
+    {
+      id: "ffn",
+      title: "Feed forward – vektoren bearbeides",
+      diagram: ["dg-layer", "dg-ffn"],
+      render() {
+        const u = ensureState();
+        const t0 = tr();
+        const last = u.ctx.length - 1;
+        return `
+          <p class="lede">Samme lille nevrale nettverk som før – gang, ReLU, gang – med de lærte
+          matrisene W₁ og W₂:</p>
+          ${lv(1) ? `
+            <div class="mathline">f = ReLU(h·W₁)·W₂ = ${R().vecHTML(t0.f[last], "data")}</div>
+            <div class="mathline">y = h + f = ${R().vecHTML(t0.y[last], "data")}</div>`
+          : `
+            <div class="ffn-flow">
+              <div class="shape-box">2 tall</div><span class="op">· W₁</span>
+              <div class="shape-box">4 tall</div><span class="op">ReLU</span>
+              <div class="shape-box">4 tall</div><span class="op">· W₂</span>
+              <div class="shape-box">2 tall</div>
+            </div>
+            <p class="note">Resultatet legges til h (residual). Ut kommer y – modellens ferdige
+            «mening» om hva som bør komme etter «${ctxText()}».</p>`}
+          ${lv(2) ? `
+            <p class="note"><b>1)</b> h · W₁:</p>${R().vecMatCalc(t0.h[last], ML.state.model.W1, "pre")}
+            <p class="note"><b>2)</b> ReLU → ${R().vecHTML(t0.act[last], "data")} &nbsp; <b>3)</b> act · W₂:</p>
+            ${R().vecMatCalc(t0.act[last], ML.state.model.W2, "f")}` : ""}`;
+      },
+    },
+
+    {
+      id: "probs",
+      title: "Hva tror modellen kommer nå?",
+      diagram: ["dg-logits", "dg-softmax"],
+      render() {
+        const t0 = tr();
+        const probs = ML.softmax(t0.logits, 1);
+        return `
+          <p class="lede">Vektoren ganges med output-matrisen → én logit per ord → softmax →
+          sannsynligheter. Modellens gjetning etter <b>«${ctxText()}»</b>:</p>
+          ${R().probBars(probs, { logits: lv(1) ? t0.logits : null })}
+          <p class="note">Merk forskjellen fra treningen: her finnes ingen fasit og ingen loss –
+          gjetningen ER svaret.</p>
+          ${lv(2) ? `
+            <div class="mathline">logits = y · W_U</div>
+            ${ML.VOCAB.map((w, i) => `<div class="mathline">logit(${w}) = ${R().dotCalc(t0.y[t0.T - 1], ML.state.model.Wu.map((r) => r[i]))}</div>`).join("")}` : ""}`;
       },
     },
 
@@ -165,8 +230,8 @@
       diagram: ["dg-softmax"],
       render() {
         const u = ensureState();
-        const tr = ML.state.model.forward(u.ctx);
-        const probs = ML.softmax(tr.logits, u.temp);
+        const t0 = tr();
+        const probs = ML.softmax(t0.logits, u.temp);
         return `
           <p class="lede">Før softmax deles alle logitene på <b>temperaturen</b>. Rekkefølgen endres
           aldri – bare hvor <i>bastant</i> fordelingen blir. Dra og se:</p>
@@ -178,9 +243,9 @@
             Lav τ til fakta og kode, høyere τ til idémyldring.`)}`;
       },
       wire(host) {
+        const t0 = tr();
         const u = ensureState();
-        const tr = ML.state.model.forward(u.ctx);
-        wireTemp(host, "temp", tr.logits, (probs) => {
+        wireTemp(host, "temp", t0.logits, (probs) => {
           host.querySelector("#temp-bars").innerHTML = R().probBars(probs);
           host.querySelector("#temp-hint").textContent = tempHint(u.temp);
         });
@@ -193,8 +258,8 @@
       diagram: ["dg-sampling", "dg-next"],
       render() {
         const u = ensureState();
-        const tr = ML.state.model.forward(u.ctx);
-        const probs = ML.softmax(tr.logits, u.temp);
+        const t0 = tr();
+        const probs = ML.softmax(t0.logits, u.temp);
         return `
           <p class="lede">Modellen velger ikke automatisk det mest sannsynlige ordet – den
           <b>trekker</b> fra fordelingen, som et lykkehjul der hvert ord eier en bit så stor som
@@ -233,9 +298,8 @@
       },
       wire(host) {
         const u = ensureState();
-        const tr = ML.state.model.forward(u.ctx);
-        const probs = () => ML.softmax(tr.logits, u.temp);
-        wireTemp(host, "play", tr.logits, (p) => {
+        const t0 = tr();
+        wireTemp(host, "play", t0.logits, (p) => {
           host.querySelector("#play-bars").innerHTML = R().probBars(p, { sampledIdx: u.sampled });
         });
         host.querySelectorAll("[data-add]").forEach((b) =>
@@ -251,7 +315,7 @@
           u.ctx = [0, 1]; u.sampled = null; renderUse(false);
         });
         host.querySelector("#sample-btn").addEventListener("click", () => {
-          const p = probs();
+          const p = ML.softmax(t0.logits, u.temp);
           const r = Math.random();
           let acc = 0, pick = p.length - 1;
           for (let i = 0; i < p.length; i++) {
@@ -278,7 +342,7 @@
   function renderUse(scroll = true) {
     ensureState();
     const host = document.getElementById("content");
-    const i = ML.state.useStepIdx ?? 0;
+    const i = Math.min(ML.state.useStepIdx ?? 0, steps.length - 1);
     const step = steps[i];
     host.innerHTML = `
       <div class="card">
