@@ -99,10 +99,45 @@
     </svg>`;
   }
 
+  // Fast navigasjonslinje nederst på skjermen – samme sted uansett steg.
+  // Prikkene er klikkbare (til allerede besøkte steg) og viser stegtittel som tooltip.
+  function renderNav(opts) {
+    const el = document.getElementById("navbar");
+    if (!opts) { el.innerHTML = ""; return; }
+    const maxV = opts.maxVisited ?? opts.current;
+    const dots = Array.from({ length: opts.count }, (_, j) =>
+      `<button class="dot ${j < opts.current ? "done" : j === opts.current ? "now" : ""}"
+        data-dot="${j}" ${j > maxV ? "disabled" : ""}
+        title="${(opts.titles && opts.titles[j]) || `Steg ${j + 1}`}"></button>`
+    ).join("");
+    const progress = ((opts.current + 1) / opts.count) * 100;
+    el.innerHTML = `
+      <div class="navbar-inner"><div class="navbar-bar">
+        <div class="nav-progress" style="width:${progress}%"></div>
+        <button class="btn ghost" id="nav-prev" ${opts.current === 0 ? "disabled" : ""}>← Tilbake</button>
+        <div class="spacer"></div>
+        <div class="dots">${dots}</div>
+        <div class="spacer"></div>
+        <button class="btn primary" id="nav-next" ${opts.current >= opts.count - 1 || opts.nextDisabled ? "disabled" : ""}>${opts.nextLabel || "Neste →"}</button>
+      </div></div>`;
+    el.querySelector("#nav-prev").addEventListener("click", () => opts.onPrev());
+    el.querySelector("#nav-next").addEventListener("click", () => opts.onNext());
+    if (opts.onJump)
+      el.querySelectorAll("[data-dot]:not(:disabled)").forEach((d) =>
+        d.addEventListener("click", () => opts.onJump(Number(d.dataset.dot)))
+      );
+    // Piltast-navigasjon (ignorer når fokus står i et input-felt)
+    ML._navKeys = (e) => {
+      if (e.target.matches("input, textarea, select")) return;
+      if (e.key === "ArrowRight" && opts.current < opts.count - 1) opts.onNext();
+      if (e.key === "ArrowLeft" && opts.current > 0) opts.onPrev();
+    };
+  }
+
   // Sammenleggbart ærlighetsnotat – én stille linje i stedet for en boks.
   function honest(text) {
     return `<details class="honest"><summary>🌍 I en ekte LLM …</summary><p>${text}</p></details>`;
   }
 
-  ML.R = { fmt, pct, vecHTML, matHTML, dotCalc, vecMatCalc, tokenChip, probBars, disclosure, sparkline, honest };
+  ML.R = { fmt, pct, vecHTML, matHTML, dotCalc, vecMatCalc, tokenChip, probBars, disclosure, sparkline, honest, renderNav };
 })();

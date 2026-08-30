@@ -7,6 +7,9 @@
     mode: "train",
     stepIdx: 0,
     useStepIdx: 0,
+    maxTrainStep: 0,
+    maxUseStep: 0,
+    logitGuess: null,
     level: 0, // 0 = Enkelt, 1 = Med tall, 2 = Full utregning
     history: [],
     qkvTab: "q",
@@ -67,7 +70,16 @@
     ML.inspector.render();
     document.getElementById("tab-train").classList.toggle("active", ML.state.mode === "train");
     document.getElementById("tab-use").classList.toggle("active", ML.state.mode === "use");
+    // Vis modellstatus i fanen: ✓ når modellen faktisk har lært oppgaven.
+    const learned = ML.state.model.forward([0, 1]).probs[2] > 0.9;
+    document.getElementById("tab-use").textContent = learned ? "2 · Bruk modellen ✓" : "2 · Bruk modellen";
   }
+  ML.renderAll = render;
+
+  ML.stepForDiagram = function (id) {
+    const map = ML.state.mode === "train" ? ML.TRAIN_DIAG : ML.USE_DIAG;
+    return map && id in map ? map[id] : -1;
+  };
 
   ML.setMode = function (mode) {
     ML.state.mode = mode;
@@ -85,9 +97,28 @@
     ML.recordEval();
     ML.state.stepIdx = 0;
     ML.state.useStepIdx = 0;
+    ML.state.maxTrainStep = 0;
+    ML.state.maxUseStep = 0;
+    ML.state.logitGuess = null;
     ML.state.bpJustApplied = false;
     ML.state.use = null;
     render();
+  });
+
+  // Piltaster for Tilbake/Neste (lytteren settes av renderNav per steg).
+  document.addEventListener("keydown", (e) => {
+    if (ML._navKeys) ML._navKeys(e);
+  });
+
+  // Klikk i arkitekturdiagrammet hopper til tilhørende steg i gjeldende modus.
+  document.addEventListener("click", (e) => {
+    const box = e.target.closest(".dg-box");
+    if (!box) return;
+    const idx = ML.stepForDiagram && ML.stepForDiagram(box.id);
+    if (idx === undefined || idx < 0) return;
+    if (ML.state.mode === "train") { ML.state.stepIdx = idx; ML.renderTrain(); }
+    else { ML.state.useStepIdx = idx; ML.renderUse(); }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   // Progressiv avsløring: delegert klikk for alle "Vis tallene"-knapper.

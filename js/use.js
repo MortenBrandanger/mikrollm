@@ -1,14 +1,16 @@
 /* Bruksmodus: samme rørledning som i treningen, gjennomgått på nytt som
-   åtte små steg – ett konsept per skjerm – med frosne parametere, og
-   temperatur + sampling (lekeplassen) til slutt.
+   små steg med frosne parametere – og til slutt temperatur, sampling,
+   «det store bildet» og lekeplassen.
 
-   Detaljnivået (ML.state.level) styrer hvor mye tall som vises:
-     0 = Enkelt, 1 = Med tall, 2 = Full utregning. */
+   Tekster er betinget av om modellen faktisk er trent (m.steps),
+   siden modellen persisteres og kan være i begge tilstander. */
 (function () {
   const ML = globalThis.ML;
   const R = () => ML.R;
   const W = (i) => ML.VOCAB[i];
   const lv = (n) => ML.state.level >= n;
+  const isTrained = () => ML.state.model.steps > 0;
+  const calc = (html) => (lv(2) ? R().disclosure("🧮 Hele utregningen", html) : "");
 
   function ensureState() {
     if (!ML.state.use)
@@ -57,12 +59,23 @@
       Vi trakk r = <b>${R().fmt(r, 3)}</b>:</p>${rows}`;
   }
 
+  function sampleFrom(probs) {
+    const r = Math.random();
+    let acc = 0, pick = probs.length - 1;
+    for (let i = 0; i < probs.length; i++) {
+      acc += probs[i];
+      if (r < acc) { pick = i; break; }
+    }
+    return { pick, r };
+  }
+
   /* ---------------- Stegene ---------------- */
 
   const steps = [
     {
       id: "frozen",
-      title: "Modellen er frosset – nå skal den brukes",
+      title: "Modellen er frosset",
+      sub: "fra nå av endres ingenting",
       diagram: [],
       render() {
         const m = ML.state.model;
@@ -70,41 +83,21 @@
           <div class="frozen-banner">
             <span class="big">🔒</span>
             <div>PARAMETERE FROSSET<br>
-            <span style="font-weight:400;font-size:13.5px">${m.steps > 0
-              ? `Modellen er ferdig trent (${m.steps} steg).`
-              : "Modellen er som den er."} Fra nå av leses parameterne bare – ingenting endres,
-            uansett hvor mye vi bruker den.</span></div>
+            <span style="font-weight:400;font-size:13.5px">${isTrained()
+              ? `Modellen er ferdig trent (${m.steps} steg). `
+              : ""}Fra nå av leses parameterne bare – ingenting endres, uansett hvor mye vi bruker
+            den.</span></div>
           </div>
-          <p class="lede">Å <i>bruke</i> modellen – det som skjer når du chatter med en LLM – er samme
-          maskin som i treningen. Forskjellen er hva som skjer etter prediksjonen:</p>
-          <div class="compare">
-            <div class="cmp-col train">
-              <h4>Trening</h4>
-              <ol>
-                <li>fremoverpass → prediksjon</li>
-                <li>sammenlign med fasit → <b>loss</b></li>
-                <li><b>bakoverpass</b> → gradienter</li>
-                <li>🟠 <b>parameterne ENDRES</b></li>
-              </ol>
-            </div>
-            <div class="cmp-col use">
-              <h4>Bruk</h4>
-              <ol>
-                <li>fremoverpass → prediksjon</li>
-                <li>softmax → sannsynligheter</li>
-                <li><b>sampling</b> → velg neste token</li>
-                <li>🔒 <b>ingen parametere endres</b></li>
-              </ol>
-            </div>
-          </div>
-          <p class="note">Vi går gjennom rørledningen en gang til, steg for steg – nå med den ferdig
-          trente modellen.</p>`;
+          <p class="lede">Å <i>bruke</i> modellen – det som skjer når du chatter med en LLM – er den
+          samme maskinen som i treningen, men uten læringen. Vi går gjennom rørledningen en gang til,
+          steg for steg${isTrained() ? " – nå med den ferdig trente modellen" : ""}.</p>`;
       },
     },
 
     {
       id: "tokens",
-      title: "Teksten deles i tokens",
+      title: "Tokenisering",
+      sub: "samme oppslag som før",
       diagram: ["dg-text", "dg-tokens"],
       render() {
         const u = ensureState();
@@ -121,15 +114,18 @@
 
     {
       id: "emb",
-      title: "Tokens blir tall – og nå er tallene lærte",
+      title: "Embeddinger",
+      sub: () => (isTrained() ? "nå med lærte tall" : "tokens blir tall"),
       diagram: ["dg-emb"],
       render() {
         const u = ensureState();
         const m = ML.state.model;
         const t0 = tr();
         return `
-          <p class="lede">Hver token slås opp i embedding-tabellen og blir en vektor. Forskjellen fra
-          før treningen: verdiene er ikke lenger tilfeldige – <b>dette er det treningen skapte</b>.</p>
+          <p class="lede">Hver token slås opp i embedding-tabellen og blir en vektor.
+          ${isTrained()
+            ? `Verdiene er ikke lenger tilfeldige – <b>dette er det treningen skapte</b>.`
+            : `(Modellen er utrent, så disse er fortsatt de tilfeldige startverdiene.)`}</p>
           <div style="margin:12px 0">
             ${u.ctx.map((t) => `
               <div class="chiprow">
@@ -147,7 +143,8 @@
 
     {
       id: "attn",
-      title: "Attention – tokens ser på hverandre",
+      title: "Attention",
+      sub: "hvem ser siste token på?",
       diagram: ["dg-layer", "dg-attn"],
       render() {
         const u = ensureState();
@@ -155,8 +152,8 @@
         const last = u.ctx.length - 1;
         const A = t0.alphas[last];
         return `
-          <p class="lede">Siste token, «${W(u.ctx[last])}», henter informasjon fra hele teksten – med
-          de lærte Q-, K- og V-matrisene:</p>
+          <p class="lede">Siste token, «${W(u.ctx[last])}», henter informasjon fra hele teksten med
+          Q-, K- og V-matrisene${isTrained() ? " – og vektene er nå <b>lærte</b>, ikke tilfeldige" : ""}:</p>
           <div class="attn-weights">
             ${u.ctx.map((t, j) => `
               <div class="aw-row">
@@ -168,19 +165,19 @@
           ${lv(1) ? `
             <div class="mathline">z = ${u.ctx.map((t, j) => `${R().pct(A[j], 0)}·v<sub>${W(t)}</sub>`).join(" + ")} = ${R().vecHTML(t0.z[last], "data")}</div>
             <div class="mathline">h = x + z·W_O = ${R().vecHTML(t0.h[last], "data")}</div>` : ""}
-          ${lv(2) ? u.ctx.map((t, j) => `
-            <div class="mathline note">score(${W(u.ctx[last])} → ${W(t)}) = q·k/√2 = (${R().dotCalc(t0.q[last], t0.k[j])}) / 1.41 = <span class="res">${R().fmt(t0.scores[last][j])}</span></div>`).join("") : ""}`;
+          ${calc(u.ctx.map((t, j) => `
+            <div class="mathline">score(${W(u.ctx[last])} → ${W(t)}) = q·k/√2 = (${R().dotCalc(t0.q[last], t0.k[j])}) / 1.41 = <span class="res">${R().fmt(t0.scores[last][j])}</span></div>`).join(""))}`;
       },
     },
 
     {
       id: "ffn",
-      title: "Feed forward – vektoren bearbeides",
+      title: "Feed forward",
+      sub: "vektoren bearbeides",
       diagram: ["dg-layer", "dg-ffn"],
       render() {
-        const u = ensureState();
         const t0 = tr();
-        const last = u.ctx.length - 1;
+        const last = ensureState().ctx.length - 1;
         return `
           <p class="lede">Samme lille nevrale nettverk som før – gang, ReLU, gang – med de lærte
           matrisene W₁ og W₂:</p>
@@ -193,38 +190,39 @@
               <div class="shape-box">4 tall</div><span class="op">ReLU</span>
               <div class="shape-box">4 tall</div><span class="op">· W₂</span>
               <div class="shape-box">2 tall</div>
-            </div>
-            <p class="note">Resultatet legges til h (residual). Ut kommer y – modellens ferdige
-            «mening» om hva som bør komme etter «${ctxText()}».</p>`}
-          ${lv(2) ? `
+            </div>`}
+          <p>Ut kommer y – modellens ferdige «mening» om hva som bør komme etter «${ctxText()}».</p>
+          ${calc(`
             <p class="note"><b>1)</b> h · W₁:</p>${R().vecMatCalc(t0.h[last], ML.state.model.W1, "pre")}
             <p class="note"><b>2)</b> ReLU → ${R().vecHTML(t0.act[last], "data")} &nbsp; <b>3)</b> act · W₂:</p>
-            ${R().vecMatCalc(t0.act[last], ML.state.model.W2, "f")}` : ""}`;
+            ${R().vecMatCalc(t0.act[last], ML.state.model.W2, "f")}`)}`;
       },
     },
 
     {
       id: "probs",
-      title: "Hva tror modellen kommer nå?",
+      title: "Sannsynligheter",
+      sub: "hva tror modellen kommer nå?",
       diagram: ["dg-logits", "dg-softmax"],
       render() {
         const t0 = tr();
         const probs = ML.softmax(t0.logits, 1);
         return `
           <p class="lede">Vektoren ganges med output-matrisen → én logit per ord → softmax →
-          sannsynligheter. Modellens gjetning etter <b>«${ctxText()}»</b>:</p>
+          sannsynligheter. Og her er den store forskjellen fra treningen: <b>det finnes ingen fasit
+          og ingen loss – gjetningen ER svaret.</b></p>
+          <p style="margin-bottom:2px"><b>Hva tror modellen kommer etter «${ctxText()}»?</b></p>
           ${R().probBars(probs, { logits: lv(1) ? t0.logits : null })}
-          <p class="note">Merk forskjellen fra treningen: her finnes ingen fasit og ingen loss –
-          gjetningen ER svaret.</p>
-          ${lv(2) ? `
+          ${calc(`
             <div class="mathline">logits = y · W_U</div>
-            ${ML.VOCAB.map((w, i) => `<div class="mathline">logit(${w}) = ${R().dotCalc(t0.y[t0.T - 1], ML.state.model.Wu.map((r) => r[i]))}</div>`).join("")}` : ""}`;
+            ${ML.VOCAB.map((w, i) => `<div class="mathline">logit(${w}) = ${R().dotCalc(t0.y[t0.T - 1], ML.state.model.Wu.map((r) => r[i]))}</div>`).join("")}`)}`;
       },
     },
 
     {
       id: "temp",
-      title: "Temperatur – skru på personligheten",
+      title: "Temperatur",
+      sub: "skru på personligheten",
       diagram: ["dg-softmax"],
       render() {
         const u = ensureState();
@@ -253,7 +251,8 @@
 
     {
       id: "sampling",
-      title: "Sampling – terningkastet til slutt",
+      title: "Sampling",
+      sub: "terningkastet til slutt",
       diagram: ["dg-sampling", "dg-next"],
       render() {
         const u = ensureState();
@@ -282,13 +281,7 @@
         const u = ensureState();
         const t0 = tr();
         host.querySelector("#sample-btn").addEventListener("click", () => {
-          const p = ML.softmax(t0.logits, u.temp);
-          const r = Math.random();
-          let acc = 0, pick = p.length - 1;
-          for (let i = 0; i < p.length; i++) {
-            acc += p[i];
-            if (r < acc) { pick = i; break; }
-          }
+          const { pick, r } = sampleFrom(ML.softmax(t0.logits, u.temp));
           u.sampled = pick;
           u.draw = r;
           renderUse(false);
@@ -297,8 +290,44 @@
     },
 
     {
+      id: "bigpicture",
+      title: "Det store bildet",
+      sub: "trening og bruk, side om side",
+      diagram: [],
+      render() {
+        return `
+          <p class="lede">Du har nå sett begge sider av maskinen. Samme fremoverpass – men helt
+          forskjellige slutter:</p>
+          <div class="compare">
+            <div class="cmp-col train">
+              <h4>Trening</h4>
+              <ol>
+                <li>fremoverpass → prediksjon</li>
+                <li>sammenlign med fasit → <b>loss</b></li>
+                <li><b>bakoverpass</b> → gradienter</li>
+                <li>🟠 <b>parameterne ENDRES</b></li>
+              </ol>
+            </div>
+            <div class="cmp-col use">
+              <h4>Bruk</h4>
+              <ol>
+                <li>fremoverpass → prediksjon</li>
+                <li>softmax → sannsynligheter</li>
+                <li><b>sampling</b> → velg neste token</li>
+                <li>🔒 <b>ingen parametere endres</b></li>
+              </ol>
+            </div>
+          </div>
+          <p>Og her er innsikten verdt å ta med seg: <b>å bruke en modell endrer den ikke.</b>
+          ChatGPT «lærer» ikke av samtalen din – alt den kan, ble frosset da treningen sluttet. Neste
+          ord velges ved å lese de samme parameterne igjen og igjen, pluss et terningkast.</p>`;
+      },
+    },
+
+    {
       id: "play",
-      title: "Lekeplassen – la modellen skrive 🎲",
+      title: "Lekeplassen",
+      sub: "la modellen skrive 🎲",
       diagram: ["dg-sampling", "dg-next"],
       render() {
         const u = ensureState();
@@ -337,7 +366,11 @@
               ${u.ctx.length < ML.MAXPOS
                 ? `<button class="btn primary" id="accept-btn">Legg til i teksten og fortsett →</button>`
                 : `<span class="note">Kontekstvinduet på ${ML.MAXPOS} tokens er fullt – ekte modeller har samme grense, bare mye større.</span>`}
-            </div>` : ""}`;
+            </div>` : ""}
+
+          <p class="note" style="margin-top:20px">🎓 <b>Du har trent og brukt en ekte transformer.</b>
+          Veier videre: ta runden igjen på «Med tall»-nivået · trykk «↺ Nullstill» og se hvor
+          tilfeldig alt starter · les ærlighetsnotatet nederst på siden.</p>`;
       },
       wire(host) {
         const u = ensureState();
@@ -358,13 +391,7 @@
           u.ctx = [0, 1]; u.sampled = null; renderUse(false);
         });
         host.querySelector("#sample-btn").addEventListener("click", () => {
-          const p = ML.softmax(t0.logits, u.temp);
-          const r = Math.random();
-          let acc = 0, pick = p.length - 1;
-          for (let i = 0; i < p.length; i++) {
-            acc += p[i];
-            if (r < acc) { pick = i; break; }
-          }
+          const { pick, r } = sampleFrom(ML.softmax(t0.logits, u.temp));
           u.sampled = pick;
           u.draw = r;
           renderUse(false);
@@ -387,7 +414,7 @@
     const host = document.getElementById("content");
     const i = Math.min(ML.state.useStepIdx ?? 0, steps.length - 1);
     const step = steps[i];
-    const untrained = ML.state.model.steps === 0;
+    const untrained = !isTrained();
     host.innerHTML = `
       ${untrained ? `
         <div class="card" style="border-color:#e7c78a;background:#fffaf0;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 22px">
@@ -397,31 +424,32 @@
         </div>` : ""}
       <div class="card">
         <div class="step-kicker">Bruksmodus · steg ${i + 1} av ${steps.length}</div>
-        <h2>${step.title}</h2>
+        <h2>${step.title} <span class="h2-sub">${typeof step.sub === "function" ? step.sub() : step.sub || ""}</span></h2>
         ${step.render()}
-        <div class="stepnav">
-          <button class="btn" id="nav-prev" ${i === 0 ? "disabled" : ""}>← Tilbake</button>
-          <div class="spacer"></div>
-          <div class="dots">${steps.map((_, j) => `<span class="dot ${j < i ? "done" : j === i ? "now" : ""}"></span>`).join("")}</div>
-          <div class="spacer"></div>
-          <button class="btn primary" id="nav-next" ${i === steps.length - 1 ? "disabled" : ""}>Neste →</button>
-        </div>
       </div>`;
     ML.diagram.highlight(step.diagram);
     ML.diagram.setBackward(false);
     const gotoTrain = host.querySelector("#goto-train");
     if (gotoTrain) gotoTrain.addEventListener("click", () => ML.setMode("train"));
     if (step.wire) step.wire(host);
-    host.querySelector("#nav-prev").addEventListener("click", () => {
-      ML.state.useStepIdx = Math.max(0, i - 1);
-      renderUse();
-    });
-    host.querySelector("#nav-next").addEventListener("click", () => {
-      ML.state.useStepIdx = Math.min(steps.length - 1, i + 1);
-      renderUse();
+    ML.state.maxUseStep = Math.max(ML.state.maxUseStep || 0, i);
+    const goto = (j) => { ML.state.useStepIdx = j; renderUse(); };
+    ML.R.renderNav({
+      count: steps.length,
+      current: i,
+      maxVisited: ML.state.maxUseStep,
+      titles: steps.map((s) => s.title),
+      onPrev() { goto(Math.max(0, i - 1)); },
+      onNext() { goto(Math.min(steps.length - 1, i + 1)); },
+      onJump(j) { goto(j); },
     });
     if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   ML.renderUse = renderUse;
+  // Klikk i diagrammet → hopp til steget som forklarer den delen.
+  ML.USE_DIAG = {
+    "dg-text": 1, "dg-tokens": 1, "dg-emb": 2, "dg-layer": 3, "dg-attn": 3,
+    "dg-ffn": 4, "dg-logits": 5, "dg-softmax": 6, "dg-sampling": 7, "dg-next": 9,
+  };
 })();
