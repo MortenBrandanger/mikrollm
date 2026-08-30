@@ -98,7 +98,7 @@
       id: "tokens",
       title: "Tokenisering",
       sub: "samme oppslag som før",
-      diagram: ["dg-text", "dg-tokens"],
+      diagram: ["dg-tokens"],
       render() {
         const u = ensureState();
         return `
@@ -145,7 +145,7 @@
       id: "attn",
       title: "Attention",
       sub: "hvem ser siste token på?",
-      diagram: ["dg-layer", "dg-attn"],
+      diagram: ["dg-attn"],
       render() {
         const u = ensureState();
         const t0 = tr();
@@ -174,7 +174,7 @@
       id: "ffn",
       title: "Feed forward",
       sub: "vektoren bearbeides",
-      diagram: ["dg-layer", "dg-ffn"],
+      diagram: ["dg-ffn"],
       render() {
         const t0 = tr();
         const last = ensureState().ctx.length - 1;
@@ -203,7 +203,7 @@
       id: "probs",
       title: "Sannsynligheter",
       sub: "hva tror modellen kommer nå?",
-      diagram: ["dg-logits", "dg-softmax"],
+      diagram: ["dg-logits"],
       render() {
         const t0 = tr();
         const probs = ML.softmax(t0.logits, 1);
@@ -253,7 +253,7 @@
       id: "sampling",
       title: "Sampling",
       sub: "terningkastet til slutt",
-      diagram: ["dg-sampling", "dg-next"],
+      diagram: ["dg-sampling"],
       render() {
         const u = ensureState();
         const t0 = tr();
@@ -328,7 +328,7 @@
       id: "play",
       title: "Lekeplassen",
       sub: "la modellen skrive 🎲",
-      diagram: ["dg-sampling", "dg-next"],
+      diagram: ["dg-next"],
       render() {
         const u = ensureState();
         const t0 = tr();

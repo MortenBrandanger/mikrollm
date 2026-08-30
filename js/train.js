@@ -68,7 +68,7 @@
       id: "token",
       title: "Tokenisering",
       sub: "teksten deles i biter",
-      diagram: ["dg-text", "dg-tokens"],
+      diagram: ["dg-tokens"],
       render() {
         return `
           <p class="lede">Først deles teksten i <b>tokens</b> – bitene modellen jobber med. Hos oss
@@ -146,7 +146,7 @@
       id: "qkv",
       title: "Attention (1 av 3) · Q, K og V",
       sub: "hver token lager tre nye vektorer",
-      diagram: ["dg-layer", "dg-attn"],
+      diagram: ["dg-attn"],
       render() {
         const tr = trace();
         const m = ML.state.model;
@@ -192,7 +192,7 @@
       id: "attnw",
       title: "Attention (2 av 3) · hvem ser på hvem?",
       sub: "Q møter K og blir oppmerksomhetsvekter",
-      diagram: ["dg-layer", "dg-attn"],
+      diagram: ["dg-attn"],
       render() {
         const tr = trace();
         const A = tr.alphas[1];
@@ -227,7 +227,7 @@
       id: "attnz",
       title: "Attention (3 av 3) · informasjonen blandes",
       sub: "et veid gjennomsnitt av V-vektorene",
-      diagram: ["dg-layer", "dg-attn"],
+      diagram: ["dg-attn"],
       render() {
         const tr = trace();
         const m = ML.state.model;
@@ -257,7 +257,7 @@
       id: "ffn",
       title: "Feed forward",
       sub: "hver token bearbeides for seg",
-      diagram: ["dg-layer", "dg-ffn"],
+      diagram: ["dg-ffn"],
       render() {
         const tr = trace();
         const m = ML.state.model;
@@ -299,7 +299,7 @@
       id: "logits",
       title: "Logits og softmax",
       sub: "hva tror modellen?",
-      diagram: ["dg-logits", "dg-softmax"],
+      diagram: ["dg-logits"],
       render() {
         const tr = trace();
         const m = ML.state.model;
@@ -380,7 +380,7 @@
       id: "backprop",
       title: "Backpropagation",
       sub: "læringen skjer baklengs",
-      diagram: ["dg-emb", "dg-layer", "dg-attn", "dg-ffn", "dg-logits", "dg-softmax"],
+      diagram: [], // de røde pilene ER markeringen her
       backward: true,
       render() {
         const m = ML.state.model;
