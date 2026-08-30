@@ -25,7 +25,8 @@ Treningseksempelet er «katten drikker» → «melk», vokabular på 5 ord.
 
 ## Prøv den
 
-Siden kjører på **https://mortenbrandanger.github.io/mikrollm/**
+Siden kjører på **https://mikrollm.vercel.app** (og på
+[GitHub Pages](https://mortenbrandanger.github.io/mikrollm/)).
 
 ## Kjøre lokalt
 
