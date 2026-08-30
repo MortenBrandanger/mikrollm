@@ -6,6 +6,7 @@
     model: new ML.TinyLM(42),
     mode: "train",
     stepIdx: 0,
+    useStepIdx: 0,
     level: 0, // 0 = Enkelt, 1 = Med tall, 2 = Full utregning
     history: [],
     qkvTab: "q",
@@ -50,6 +51,7 @@
     ML.state.history = [];
     ML.recordEval();
     ML.state.stepIdx = 0;
+    ML.state.useStepIdx = 0;
     ML.state.bpJustApplied = false;
     ML.state.use = null;
     render();
