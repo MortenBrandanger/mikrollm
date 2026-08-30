@@ -92,11 +92,29 @@ button { font: inherit; cursor: pointer; }
 .step-kicker { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); }
 .lede { color: #3d4350; font-size: 16px; }
 .note { color: var(--muted); font-size: 13.5px; }
-.honest {
-  margin-top: 14px; padding: 10px 14px; border-radius: 10px;
+details.honest {
+  margin-top: 14px; border-radius: 10px;
   background: #f6f8f3; border: 1px dashed #cfd8c4; color: #55604b; font-size: 13.5px;
 }
-.honest::before { content: "🌍 I en ekte LLM: "; font-weight: 700; }
+details.honest summary { cursor: pointer; font-weight: 650; padding: 8px 14px; color: #5c6a50; }
+details.honest p { margin: 0; padding: 0 14px 10px; }
+
+/* Global detaljnivå-velger */
+.level-switch { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: #fff; }
+.level-btn {
+  border: none; background: transparent; color: var(--muted);
+  padding: 7px 14px; font-size: 13px; font-weight: 650;
+}
+.level-btn + .level-btn { border-left: 1px solid var(--line); }
+.level-btn.active { background: var(--accent); color: #fff; }
+.level-btn:not(.active):hover { color: var(--ink); background: #f4f1ea; }
+
+/* Formbokser for konsept-nivået i FFN */
+.shape-box {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--data-line); background: var(--data-bg); color: #1d4fd7;
+  border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 14px;
+}
 
 /* ---------- Nav ---------- */
 .stepnav { display: flex; align-items: center; gap: 12px; margin-top: 6px; }

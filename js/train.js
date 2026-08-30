@@ -1,5 +1,8 @@
-/* Treningsmodus: ett steg av gangen gjennom én ekte treningsrunde på
-   eksempelet «katten drikker» → «melk», og deretter fri trening. */
+/* Treningsmodus: ett lite konsept av gangen gjennom én ekte treningsrunde på
+   «katten drikker» → «melk», og deretter fri trening.
+
+   Hvor mye som vises styres av det globale detaljnivået (ML.state.level):
+     0 = Enkelt (bare konseptet), 1 = Med tall, 2 = Full utregning. */
 (function () {
   const ML = globalThis.ML;
   const R = () => ML.R;
@@ -9,6 +12,7 @@
   const LR = 0.2;
 
   const W = (i) => ML.VOCAB[i];
+  const lv = (n) => ML.state.level >= n;
 
   function trace() { return ML.state.model.forward(EX_TOKENS); }
 
@@ -28,144 +32,153 @@
       diagram: ["dg-text"],
       render() {
         return `
-          <p class="lede">Modellen vår skal lære én ting: at etter <b>«katten drikker»</b> kommer
-          <b>«melk»</b>. Den er absurd liten – bare <b>60 parametere</b> – men den er bygget av
-          nøyaktig de samme delene som ChatGPT: embeddings, attention med Q/K/V, feed-forward,
-          softmax og backpropagation. Ingen juks, bare små matriser.</p>
+          <p class="lede">Modellen skal lære én ting: etter <b>«katten drikker»</b> kommer
+          <b>«melk»</b>. Den har bare <b>60 parametere</b>, men er bygget av nøyaktig de samme delene
+          som ChatGPT. Ingen juks – bare små matriser.</p>
           <div class="chiprow">
             ${R().tokenChip("katten")} ${R().tokenChip("drikker")}
             <span class="arrow-inline">→</span>
             <span class="chip win">melk</span>
-            <span class="note">(fasiten modellen skal lære)</span>
           </div>
-          <p>Underveis er det <b>én</b> distinksjon som er viktigere enn alt annet. Hold øye med fargene:</p>
+          <p>Én ting er viktigere enn alt annet underveis. Hold øye med fargene:</p>
           <div class="legend">
-            <div class="legend-item data"><b>🔵 DATA</b> Tall som flyter <i>gjennom</i> modellen akkurat nå
-            – de skapes av teksten din og forsvinner etterpå. Eksempel: ${R().vecHTML([0.7, -0.4], "data")}</div>
-            <div class="legend-item param"><b>🟠 PARAMETERE</b> Tall som <i>bor inne i</i> modellen
-            – de er det modellen har lært, og det er bare disse som endres under trening.</div>
+            <div class="legend-item data"><b>🔵 DATA</b> flyter <i>gjennom</i> modellen – skapes av
+            teksten din, forsvinner etterpå.</div>
+            <div class="legend-item param"><b>🟠 PARAMETERE</b> bor <i>inne i</i> modellen – det den
+            har lært. Bare disse endres under trening.</div>
           </div>
-          <p class="note">Akkurat nå er alle 60 parameterne tilfeldige tall. Modellen kan ingenting.
-          Trykk «Neste» og se hva som skjer i én treningsrunde.</p>`;
+          <p class="note">Akkurat nå er alle 60 parameterne tilfeldige tall – modellen kan ingenting.
+          💡 Bryteren øverst (<i>Enkelt / Med tall / Utregning</i>) velger hvor dypt du vil gå. Start
+          gjerne enkelt og ta en runde til med tall etterpå.</p>`;
       },
     },
 
     {
       id: "token",
-      title: "Steg 1 · Tokenisering",
+      title: "Tokenisering – teksten deles i biter",
       diagram: ["dg-text", "dg-tokens"],
       render() {
         return `
-          <p class="lede">Først deles teksten i <b>tokens</b> – bitene modellen jobber med.
-          Hos oss er 1 ord = 1 token, og hver token har et fast nummer i vokabularet:</p>
+          <p class="lede">Først deles teksten i <b>tokens</b>. Hos oss er 1 ord = 1 token, og hver
+          token har et fast nummer:</p>
           <div class="chiprow">
             <span class="chip plain">«katten drikker»</span>
             <span class="arrow-inline">→</span>
             ${R().tokenChip("katten", 0)} ${R().tokenChip("drikker", 1)}
           </div>
-          <p>Dette steget er helt <b>deterministisk</b> – ren oppslagstabell, ingen læring, ingen
-          parametere. Samme tekst gir alltid samme tokens.</p>
-          ${R().disclosure("📖 Vis hele vokabularet", `
-            <div class="chiprow">${ML.VOCAB.map((w, i) => R().tokenChip(w, i)).join(" ")}</div>
-            <p class="note">Hele verdenen til modellen vår er disse 5 ordene. Alt den noensinne kan si,
-            må være ett av dem.</p>`)}
-          <div class="honest">tokeniseringen deler ord i mindre biter («subord»), så «drikker» kunne
-          blitt f.eks. «drik» + «ker», og vokabularet har ~100 000 biter. Prinsippet er det samme.</div>`;
+          <p>Dette er ren oppslagstabell – <b>deterministisk</b>, ingen læring, ingen parametere.</p>
+          ${lv(1) ? `
+            <p class="note">Hele vokabularet – alt modellen noensinne kan si:</p>
+            <div class="chiprow">${ML.VOCAB.map((w, i) => R().tokenChip(w, i)).join(" ")}</div>` : ""}
+          ${R().honest(`Tokeniseringen deler ord i mindre biter («subord»), så «drikker» kunne blitt
+            «drik» + «ker», og vokabularet har ~100 000 biter. Prinsippet er det samme.`)}`;
       },
     },
 
     {
       id: "emb",
-      title: "Steg 2 · Embeddinger – tokens blir tall",
+      title: "Embeddinger – hver token blir tall",
+      diagram: ["dg-emb"],
+      render() {
+        const m = ML.state.model;
+        return `
+          <p class="lede">Modellen kan ikke regne på ord. Hver token slås opp i en tabell og blir en
+          <b>vektor</b> – en liste med tall. Hos oss: 2 tall per token.</p>
+          <div style="margin:12px 0">
+            ${(lv(1) ? [0, 1, 2, 3, 4] : EX_TOKENS).map((i) => `
+              <div class="chiprow">
+                ${R().tokenChip(W(i), i)}
+                <span class="arrow-inline">→</span>
+                ${R().vecHTML(m.E[i], "param")}
+              </div>`).join("")}
+          </div>
+          <p>Legg merke til fargen: dette er <b>🟠 parametere</b>. Det finnes ingen fasit for hva
+          «katten» skal være som tall – verdiene <b>læres</b>, og siden vi ikke har trent ennå, er de
+          bare tilfeldige.</p>
+          ${R().honest(`Samme oppslag, men vektorene har f.eks. 4096 tall i stedet for 2.
+            Antall tall = «embedding-dimensjoner».`)}`;
+      },
+    },
+
+    {
+      id: "pos",
+      title: "Posisjon – modellen må vite rekkefølgen",
       diagram: ["dg-emb"],
       render() {
         const tr = trace();
         const m = ML.state.model;
         return `
-          <p class="lede">Modellen kan ikke regne på ord. Hver token slås derfor opp i en
-          <b>embedding-tabell</b> og blir en <b>vektor</b> – en liste med tall. Hos oss:
-          2 tall per token (<b>2 dimensjoner</b>).</p>
-          <div style="margin:12px 0">
-            ${ML.VOCAB.map((w, i) => `
-              <div class="chiprow">
-                ${R().tokenChip(w, i)}
-                <span class="arrow-inline">→</span>
-                ${R().vecHTML(m.E[i], "param")}
-                ${EX_TOKENS.includes(i) ? "" : `<span class="note">(ikke i bruk i denne setningen)</span>`}
-              </div>`).join("")}
-          </div>
-          <p>⚠️ Legg merke til fargen: embedding-tabellen er <b>🟠 parametere</b>. Verdiene er
-          <b>lærte</b> – og siden vi ikke har trent ennå, er de bare tilfeldige tall. Det finnes ingen
-          fasit for hva «katten» skal være som vektor; modellen finner det ut selv under trening.</p>
-          ${R().disclosure("🔢 Vis tallene: pluss posisjon", `
-            <p>En transformer ser alle tokens samtidig og vet ikke rekkefølgen av seg selv. Derfor legges
-            det til en lært <b>posisjonsvektor</b> per plass i setningen:</p>
-            ${EX_TOKENS.map((t, i) => `
-              <div class="mathline">x<sub>${W(t)}</sub> = E[${W(t)}] + P[pos ${i}] =
-                ${R().vecHTML(ML.state.model.E[t], "param")} + ${R().vecHTML(ML.state.model.P[i], "param")}
-                = ${R().vecHTML(tr.x[i], "data")}</div>`).join("")}
-            <p class="note">Resultatet x er <b>🔵 data</b>: parametere ble kombinert med input og
-            begynner nå å flyte gjennom modellen.</p>`)}
-          ${R().disclosure("🧮 Vis utregningen", `
-            ${EX_TOKENS.map((t, i) => `
-              <div class="mathline">x<sub>${W(t)}</sub>[0] = ${R().fmt(ML.state.model.E[t][0])} + ${R().fmt(ML.state.model.P[i][0])} = <span class="res">${R().fmt(tr.x[i][0])}</span></div>
-              <div class="mathline">x<sub>${W(t)}</sub>[1] = ${R().fmt(ML.state.model.E[t][1])} + ${R().fmt(ML.state.model.P[i][1])} = <span class="res">${R().fmt(tr.x[i][1])}</span></div>`).join("")}`)}
-          <div class="honest">samme oppslag, men vektorene har f.eks. 4096 dimensjoner i stedet for 2,
-          og posisjon kodes ofte med et triks kalt RoPE i stedet for en lært tabell.</div>`;
+          <p class="lede">En transformer ser alle tokens <b>samtidig</b> og aner ikke rekkefølgen av
+          seg selv. Derfor får hver plass i setningen sin egen lærte <b>posisjonsvektor</b>, som
+          legges til:</p>
+          ${lv(1) ? EX_TOKENS.map((t, i) => `
+            <div class="mathline">x<sub>${W(t)}</sub> = E[${W(t)}] + P[plass ${i}] =
+              ${R().vecHTML(m.E[t], "param")} + ${R().vecHTML(m.P[i], "param")}
+              = ${R().vecHTML(tr.x[i], "data")}</div>`).join("")
+          : `<div class="mathline" style="text-align:center">x = embedding + posisjonsvektor</div>`}
+          ${lv(2) ? EX_TOKENS.map((t, i) => `
+            <div class="mathline note">x<sub>${W(t)}</sub>[0] = ${R().fmt(m.E[t][0])} + ${R().fmt(m.P[i][0])} = <span class="res">${R().fmt(tr.x[i][0])}</span>
+            &nbsp;&nbsp; x<sub>${W(t)}</sub>[1] = ${R().fmt(m.E[t][1])} + ${R().fmt(m.P[i][1])} = <span class="res">${R().fmt(tr.x[i][1])}</span></div>`).join("") : ""}
+          <p>Resultatet x er <b>🔵 data</b> – nå begynner tallene å flyte gjennom modellen.</p>
+          ${R().honest(`Posisjon kodes ofte med et triks kalt RoPE i stedet for en lært tabell,
+            men jobben er den samme: å skille «katten drikker» fra «drikker katten».`)}`;
       },
     },
 
     {
-      id: "attn",
-      title: "Steg 3 · Attention – tokens ser på hverandre",
+      id: "qkv",
+      title: "Attention · hver token lager Q, K og V",
       diagram: ["dg-layer", "dg-attn"],
       render() {
         const tr = trace();
         const m = ML.state.model;
-        const A = tr.alphas[1];
         const qkv = ML.state.qkvTab;
         const info = {
-          q: {
-            name: "Q – Query", weight: m.Wq, label: "W_Q",
-            what: "«Hva leter jeg etter?» Hver token lager en <b>spørrevektor</b> q ved å gange sin egen vektor x med den lærte matrisen W_Q.",
-            out: tr.q,
-          },
-          k: {
-            name: "K – Key", weight: m.Wk, label: "W_K",
-            what: "«Hva kan jeg tilby?» Hver token lager en <b>nøkkelvektor</b> k med den lærte matrisen W_K. Query og Key sammenlignes for å avgjøre hvem som er relevant for hvem.",
-            out: tr.k,
-          },
-          v: {
-            name: "V – Value", weight: m.Wv, label: "W_V",
-            what: "«Hva sender jeg videre hvis noen bryr seg om meg?» Hver token lager en <b>verdivektor</b> v med den lærte matrisen W_V. Det er verdiene som faktisk blandes sammen til slutt.",
-            out: tr.v,
-          },
+          q: { name: "Q – Query", weight: m.Wq, label: "W_Q", out: tr.q,
+               what: "«Hva leter jeg etter?» Tokenens <b>spørrevektor</b>." },
+          k: { name: "K – Key", weight: m.Wk, label: "W_K", out: tr.k,
+               what: "«Hva kan jeg tilby?» Tokenens <b>nøkkelvektor</b> – den andre sammenligner seg mot." },
+          v: { name: "V – Value", weight: m.Wv, label: "W_V", out: tr.v,
+               what: "«Hva sender jeg videre?» Tokenens <b>verdivektor</b> – det som faktisk blandes til slutt." },
         }[qkv];
         return `
-          <p class="lede">Hittil har hver token levd i sin egen boble. <b>Attention</b> lar dem utveksle
-          informasjon: «drikker» får hente inn hva slags subjekt den hører sammen med. Det skjer ikke ved
-          magi – det er tre lærte matriser og litt ganging.</p>
-
-          <p>Hver token lager tre nye vektorer av sin x: <b>Q</b>uery, <b>K</b>ey og <b>V</b>alue.
+          <p class="lede">Nå skal tokens få snakke sammen – det er <b>attention</b>. Første del:
+          hver token lager tre nye vektorer av sin x, ved å gange med tre <b>lærte matriser</b>.
           Klikk på dem:</p>
           <div class="qkv-tabs">
             ${["q", "k", "v"].map((t) => `<button class="qkv-tab ${qkv === t ? "active" : ""}" data-qkv="${t}">${t.toUpperCase()}</button>`).join("")}
           </div>
           <div class="qkv-panel">
             <p style="margin-top:0"><b>${info.name}:</b> ${info.what}</p>
-            <div>
-              ${R().matHTML(info.weight, "param", `${info.label} (lærte parametere, 2×2)`)}
-              <span class="arrow-inline" style="vertical-align:24px">brukes slik:</span>
-            </div>
-            ${EX_TOKENS.map((t, i) => `
-              <div class="mathline">${qkv}<sub>${W(t)}</sub> = x<sub>${W(t)}</sub> · ${info.label} =
-                ${R().vecHTML(tr.x[i], "data")} · ${info.label} = ${R().vecHTML(info.out[i], "data")}</div>`).join("")}
-            ${R().disclosure("🧮 Vis utregningen for «drikker»", ML.R.vecMatCalc(tr.x[1], info.weight, qkv))}
+            <div class="mathline">${qkv} = x · ${info.label}</div>
+            ${lv(1) ? `
+              <div>${R().matHTML(info.weight, "param", `${info.label} (lærte parametere, 2×2)`)}</div>
+              ${EX_TOKENS.map((t, i) => `
+                <div class="mathline">${qkv}<sub>${W(t)}</sub> =
+                  ${R().vecHTML(tr.x[i], "data")} · ${info.label} = ${R().vecHTML(info.out[i], "data")}</div>`).join("")}` : ""}
+            ${lv(2) ? `<p class="note">Utregnet for «drikker»:</p>${ML.R.vecMatCalc(tr.x[1], info.weight, qkv)}` : ""}
           </div>
+          ${R().honest(`Nøyaktig samme regnestykke – men med mange «attention-hoder» parallelt
+            (f.eks. 32), hvert med sine egne W_Q/W_K/W_V.`)}`;
+      },
+      wire(host) {
+        host.querySelectorAll("[data-qkv]").forEach((b) =>
+          b.addEventListener("click", () => { ML.state.qkvTab = b.dataset.qkv; renderTrain(); })
+        );
+      },
+    },
 
-          <p style="margin-top:18px"><b>Hvor mye ser «drikker» på hver token?</b>
-          Spørrevektoren til «drikker» prikkes mot nøkkelen til hver token
-          (score = q·k / √2), og softmax gjør scorene om til vekter som summerer til 100 %:</p>
+    {
+      id: "attnw",
+      title: "Attention · hvem ser på hvem?",
+      diagram: ["dg-layer", "dg-attn"],
+      render() {
+        const tr = trace();
+        const A = tr.alphas[1];
+        return `
+          <p class="lede">Spørrevektoren til «drikker» sammenlignes med nøkkelen til hver token.
+          Resultatet er <b>vekter</b> som summerer til 100 % – så mye oppmerksomhet gir «drikker»
+          hver token:</p>
           <div class="attn-weights">
             ${EX_TOKENS.map((t, j) => `
               <div class="aw-row">
@@ -174,112 +187,117 @@
                 <div class="aw-pct">${R().pct(A[j])}</div>
               </div>`).join("")}
           </div>
-          ${R().disclosure("🔢 Vis tallene bak vektene", `
+          ${lv(1) ? `
             ${EX_TOKENS.map((t, j) => `
-              <div class="mathline">score(drikker → ${W(t)}) = q<sub>drikker</sub>·k<sub>${W(t)}</sub> / √2 =
-              (${R().dotCalc(tr.q[1], tr.k[j])}) / 1.41 = <span class="res">${R().fmt(tr.scores[1][j])}</span></div>`).join("")}
-            <div class="mathline">softmax(${tr.scores[1].map((s) => R().fmt(s)).join(", ")}) =
-              [${A.map((a) => R().pct(a)).join(", ")}]</div>
-            <p class="note">«katten» får bare lov å se bakover (på seg selv) – en token får aldri se
-            fremover i setningen. Det kalles kausal attention.</p>`)}
-
-          <p><b>Så blandes verdiene.</b> Den nye representasjonen for «drikker» er et veid gjennomsnitt
-          av alle V-vektorene – slik flyter informasjon fra «katten» inn i «drikker»:</p>
-          <div class="mathline">z<sub>drikker</sub> = ${R().pct(A[0], 0)} · v<sub>katten</sub> + ${R().pct(A[1], 0)} · v<sub>drikker</sub> = ${R().vecHTML(tr.z[1], "data")}</div>
-          ${R().disclosure("🔢 Vis siste ledd (W_O og residual)", `
-            <p>Blandingen ganges med en fjerde lært matrise ${R().matHTML(m.Wo, "param", "W_O (2×2)")} og
-            <b>legges til</b> den opprinnelige vektoren (en «residualkobling» – tokenen beholder seg selv
-            og får attention-informasjonen som tillegg):</p>
-            <div class="mathline">h<sub>drikker</sub> = x<sub>drikker</sub> + z<sub>drikker</sub>·W_O =
-              ${R().vecHTML(tr.x[1], "data")} + ${R().vecHTML(tr.attnOut[1], "data")} = ${R().vecHTML(tr.h[1], "data")}</div>`)}
-          <div class="honest">nøyaktig samme regnestykke, men med mange attention-hoder parallelt
-          (f.eks. 32) og over tusenvis av tokens samtidig. Vektene her er tilfeldige ennå –
-          «hvem ser på hvem» er også noe som læres.</div>`;
+              <div class="mathline">score(drikker → ${W(t)}) = q<sub>drikker</sub> · k<sub>${W(t)}</sub> / √2 = <span class="res">${R().fmt(tr.scores[1][j])}</span></div>`).join("")}
+            <div class="mathline">softmax(${tr.scores[1].map((s) => R().fmt(s)).join(", ")}) = [${A.map((a) => R().pct(a)).join(", ")}]</div>` : ""}
+          ${lv(2) ? `
+            <p class="note">Prikkproduktene bak scorene:</p>
+            ${EX_TOKENS.map((t, j) => `
+              <div class="mathline">q·k for ${W(t)}: ${R().dotCalc(tr.q[1], tr.k[j])}</div>`).join("")}` : ""}
+          <p class="note">«katten» får bare se bakover (på seg selv) – ingen token får se fremover i
+          setningen. Det kalles <b>kausal</b> attention. Og husk: vektene er ikke magi – de kommer
+          rett fra Q- og K-matrisene, som er tilfeldige ennå og læres under trening.</p>
+          ${R().honest(`Samme mekanisme, men over tusenvis av tokens samtidig – hver token veier
+            hele teksten bak seg.`)}`;
       },
-      wire(host) {
-        host.querySelectorAll("[data-qkv]").forEach((b) =>
-          b.addEventListener("click", () => {
-            ML.state.qkvTab = b.dataset.qkv;
-            renderTrain();
-          })
-        );
+    },
+
+    {
+      id: "attnz",
+      title: "Attention · informasjonen blandes",
+      diagram: ["dg-layer", "dg-attn"],
+      render() {
+        const tr = trace();
+        const m = ML.state.model;
+        const A = tr.alphas[1];
+        return `
+          <p class="lede">Så brukes vektene: den nye representasjonen for «drikker» er et veid
+          gjennomsnitt av <b>verdivektorene</b> (V). Slik flyter informasjon fra «katten» inn i
+          «drikker»:</p>
+          <div class="mathline" style="text-align:center;font-size:15px">
+            z = ${R().pct(A[0], 0)} · v<sub>katten</sub> + ${R().pct(A[1], 0)} · v<sub>drikker</sub>
+            ${lv(1) ? `= ${R().vecHTML(tr.z[1], "data")}` : ""}
+          </div>
+          <p>Til slutt <b>legges resultatet til</b> den opprinnelige vektoren – en
+          <b>residualkobling</b>: tokenen beholder seg selv og får attention-informasjonen som
+          tillegg.</p>
+          ${lv(1) ? `<div class="mathline">h<sub>drikker</sub> = x + z·W_O =
+            ${R().vecHTML(tr.x[1], "data")} + ${R().vecHTML(tr.attnOut[1], "data")} = ${R().vecHTML(tr.h[1], "data")}</div>` : ""}
+          ${lv(2) ? `
+            <p class="note">W_O er attentions fjerde lærte matrise:</p>
+            <div>${R().matHTML(m.Wo, "param", "W_O (2×2)")}</div>
+            ${ML.R.vecMatCalc(tr.z[1], m.Wo, "z·W_O")}` : ""}
+          ${R().honest(`Helt likt – residualkoblinger er en av grunnene til at modeller med hundrevis
+            av lag i det hele tatt lar seg trene.`)}`;
       },
     },
 
     {
       id: "ffn",
-      title: "Steg 4 · Feed forward – et bittelite nevralt nettverk",
+      title: "Feed forward – et bittelite nevralt nettverk",
       diagram: ["dg-layer", "dg-ffn"],
       render() {
         const tr = trace();
         const m = ML.state.model;
         return `
-          <p class="lede">Etter attention bearbeides hver posisjon for seg av et lite
-          <b>nevralt nettverk</b>: vektoren ganges med en lært matrise, negative tall klippes til null
-          (ReLU), og resultatet ganges med enda en lært matrise.</p>
-          <div class="ffn-flow">
-            <div class="ffn-stage">${R().vecHTML(tr.h[1], "data")}<div class="stage-cap">h (2 tall)</div></div>
-            <span class="op">· W₁ (2×4)</span>
-            <div class="ffn-stage">${R().vecHTML(tr.pre[1], "data")}<div class="stage-cap">4 tall</div></div>
-            <span class="op">ReLU</span>
-            <div class="ffn-stage">${R().vecHTML(tr.act[1], "data")}<div class="stage-cap">negative → 0</div></div>
-            <span class="op">· W₂ (4×2)</span>
-            <div class="ffn-stage">${R().vecHTML(tr.f[1], "data")}<div class="stage-cap">f (2 tall)</div></div>
-          </div>
-          <p>Og som i attention-steget: resultatet <b>legges til</b> det som kom inn (residual):</p>
-          <div class="mathline">y<sub>drikker</sub> = h + f = ${R().vecHTML(tr.h[1], "data")} + ${R().vecHTML(tr.f[1], "data")} = ${R().vecHTML(tr.y[1], "data")}</div>
-          ${R().disclosure("🔢 Vis parameterne", `
-            <div>${R().matHTML(m.W1, "param", "W₁ (2×4) – lærte parametere")}
-            ${R().matHTML(m.W2, "param", "W₂ (4×2) – lærte parametere")}</div>
-            <p class="note">Legg merke til at nettverket først går <i>opp</i> i bredde (2 → 4 tall) og så
-            ned igjen (4 → 2). Det gir modellen «arbeidsplass» til å kombinere trekk.</p>`)}
-          ${R().disclosure("🧮 Vis utregningen", `
-            <p><b>1) h · W₁:</b></p>${R().vecMatCalc(tr.h[1], m.W1, "pre")}
-            <p><b>2) ReLU</b> (alt under null blir null):</p>
-            <div class="mathline">act = [${tr.pre[1].map((v) => `max(0, ${R().fmt(v)})`).join(", ")}] = ${R().vecHTML(tr.act[1], "data")}</div>
-            <p><b>3) act · W₂:</b></p>${R().vecMatCalc(tr.act[1], m.W2, "f")}`)}
-          <div class="honest">feed-forward-laget er den største delen av modellen: 4096 tall inn,
-          ~14 000 i midten. Aktiveringen er gjerne GELU/SiLU i stedet for ReLU – samme idé, mykere knekk.</div>`;
+          <p class="lede">Etter attention bearbeides hver posisjon for seg av et lite nevralt
+          nettverk: gang med en lært matrise, klipp negative tall til null (<b>ReLU</b>), gang med en
+          lært matrise til.</p>
+          ${lv(1) ? `
+            <div class="ffn-flow">
+              <div class="ffn-stage">${R().vecHTML(tr.h[1], "data")}<div class="stage-cap">h</div></div>
+              <span class="op">· W₁ (2×4)</span>
+              <div class="ffn-stage">${R().vecHTML(tr.pre[1], "data")}<div class="stage-cap">4 tall</div></div>
+              <span class="op">ReLU</span>
+              <div class="ffn-stage">${R().vecHTML(tr.act[1], "data")}<div class="stage-cap">negative → 0</div></div>
+              <span class="op">· W₂ (4×2)</span>
+              <div class="ffn-stage">${R().vecHTML(tr.f[1], "data")}<div class="stage-cap">f</div></div>
+            </div>
+            <div class="mathline">y = h + f = ${R().vecHTML(tr.y[1], "data")} <span class="note">(residual igjen)</span></div>`
+          : `
+            <div class="ffn-flow">
+              <div class="shape-box">2 tall</div><span class="op">· W₁</span>
+              <div class="shape-box">4 tall</div><span class="op">ReLU</span>
+              <div class="shape-box">4 tall</div><span class="op">· W₂</span>
+              <div class="shape-box">2 tall</div>
+            </div>
+            <p class="note">Nettverket går <i>opp</i> i bredde og ned igjen – det gir modellen
+            arbeidsplass til å kombinere trekk. Resultatet legges til h (residual).</p>`}
+          ${lv(2) ? `
+            <div>${R().matHTML(m.W1, "param", "W₁ (2×4)")} ${R().matHTML(m.W2, "param", "W₂ (4×2)")}</div>
+            <p class="note"><b>1)</b> h · W₁:</p>${R().vecMatCalc(tr.h[1], m.W1, "pre")}
+            <p class="note"><b>2)</b> ReLU: [${tr.pre[1].map((v) => `max(0, ${R().fmt(v)})`).join(", ")}] = ${R().vecHTML(tr.act[1], "data")}</p>
+            <p class="note"><b>3)</b> act · W₂:</p>${R().vecMatCalc(tr.act[1], m.W2, "f")}` : ""}
+          ${R().honest(`Feed-forward er den største delen av modellen: 4096 tall inn, ~14 000 i
+            midten. Aktiveringen er gjerne GELU/SiLU – samme idé, mykere knekk.`)}`;
       },
     },
 
     {
       id: "logits",
-      title: "Steg 5 · Logits og softmax – hva tror modellen?",
+      title: "Logits og softmax – hva tror modellen?",
       diagram: ["dg-logits", "dg-softmax"],
       render() {
         const tr = trace();
         const m = ML.state.model;
         return `
-          <p class="lede">Den ferdige vektoren for siste token, y<sub>drikker</sub> = ${R().vecHTML(tr.y[1], "data")},
-          inneholder nå alt modellen «mener» om fortsettelsen. Ved å gange den med den lærte
-          output-matrisen W<sub>U</sub> får hvert ord i vokabularet én score – en <b>logit</b>:</p>
-          <div class="probbars">
-            ${ML.VOCAB.map((w, i) => `
-              <div class="pb-row">
-                <div class="pb-label">${w}</div>
-                <div class="pb-bar"><div class="pb-fill" style="width:${Math.max(2, (tr.logits[i] - Math.min(...tr.logits)) / (Math.max(...tr.logits) - Math.min(...tr.logits) + 1e-9) * 100)}%"></div></div>
-                <div class="pb-val num">logit ${R().fmt(tr.logits[i])}</div>
-              </div>`).join("")}
-          </div>
-          <p><b>Softmax</b> gjør scorene om til sannsynligheter som summerer til 100 %:</p>
-          ${R().probBars(tr.probs, { correctIdx: TARGET })}
-          ${R().disclosure("🔢 Vis output-matrisen", `
-            ${R().matHTML(m.Wu, "param", "W_U (2×5) – én kolonne per ord i vokabularet")}
-            <p class="note">Kolonne nr. ${TARGET} hører til «melk». Logit(melk) = y·kolonnen =
-            ${R().dotCalc(tr.y[1], m.Wu.map((r) => r[TARGET]))}</p>`)}
-          ${R().disclosure("🧮 Vis softmax-utregningen", `
+          <p class="lede">Den ferdige vektoren for siste token ganges med den lærte
+          <b>output-matrisen</b> – da får hvert ord i vokabularet én score (<b>logit</b>), og
+          <b>softmax</b> gjør scorene om til sannsynligheter:</p>
+          ${R().probBars(tr.probs, { correctIdx: TARGET, logits: lv(1) ? tr.logits : null })}
+          ${lv(1) ? `<div class="mathline">logits = y · W_U, &nbsp; y<sub>drikker</sub> = ${R().vecHTML(tr.y[1], "data")}, &nbsp; W_U: ${R().matHTML(m.Wu, "param")}</div>` : ""}
+          ${lv(2) ? `
             <div class="mathline">P(ord) = e^logit / sum av alle e^logit</div>
-            <div class="mathline">sum = ${tr.logits.map((l) => `e^${R().fmt(l)}`).join(" + ")} = ${R().fmt(tr.logits.reduce((s, l) => s + Math.exp(l), 0))}</div>
-            ${ML.VOCAB.map((w, i) => `<div class="mathline">P(${w}) = e^${R().fmt(tr.logits[i])} / ${R().fmt(tr.logits.reduce((s, l) => s + Math.exp(l), 0))} = <span class="res">${R().pct(tr.probs[i])}</span></div>`).join("")}`)}
-          <p class="note">Modellen gjetter altså i blinde nå – som forventet, siden alle parameterne er
+            ${ML.VOCAB.map((w, i) => `<div class="mathline">P(${w}) = e^${R().fmt(tr.logits[i])} / ${R().fmt(tr.logits.reduce((s, l) => s + Math.exp(l), 0))} = <span class="res">${R().pct(tr.probs[i])}</span></div>`).join("")}` : ""}
+          <p class="note">Modellen gjetter i blinde – som forventet, alle parameterne er jo
           tilfeldige. Det skal vi gjøre noe med.</p>`;
       },
     },
 
     {
       id: "loss",
-      title: "Steg 6 · Loss – hvor feil tok modellen?",
+      title: "Loss – hvor feil tok modellen?",
       diagram: ["dg-softmax"],
       render() {
         const tr = trace();
@@ -287,8 +305,9 @@
         const p = tr.probs[TARGET];
         const loss = m.loss(tr, TARGET);
         return `
-          <p class="lede">Under trening <b>vet vi fasiten</b>: etter «katten drikker» skal det komme
-          «melk». Da kan vi måle hvor feil modellen tok – det tallet kalles <b>loss</b>.</p>
+          <p class="lede">Under trening <b>vet vi fasiten</b>: «melk». Da kan vi måle hvor feil
+          modellen tok – det tallet kalles <b>loss</b>. Perfekt svar gir loss 0; jo mer feil, jo
+          høyere.</p>
           <div class="loss-hero">
             <div>
               <div class="bignum">${R().pct(p)}</div>
@@ -300,21 +319,19 @@
               <div class="bignum-cap">loss (lavere = bedre)</div>
             </div>
           </div>
-          ${R().probBars(tr.probs, { correctIdx: TARGET })}
-          <p>Loss er rett og slett «hvor overrasket ble modellen over riktig svar?». Perfekt svar
-          (100 % på melk) gir loss 0. Jo mindre sannsynlighet modellen ga «melk», jo høyere loss.</p>
-          ${R().disclosure("🧮 Vis utregningen (cross-entropy)", `
+          ${lv(1) ? R().probBars(tr.probs, { correctIdx: TARGET }) : ""}
+          ${lv(2) ? `
             <div class="mathline">loss = −ln( P(riktig token) ) = −ln(${R().fmt(p, 3)}) = <span class="res">${R().fmt(loss, 3)}</span></div>
-            <p class="note">−ln fordi: −ln(1.0) = 0 (perfekt), −ln(0.5) ≈ 0.69, −ln(0.1) ≈ 2.3 –
-            straffen vokser bratt jo sikrere modellen var på feil ting.</p>`)}
-          <p class="note">Nå har vi ett tall som sier hvor dårlig hele modellen var. Neste steg er
-          selve magien i maskinlæring: å bruke det tallet til å forbedre alle 60 parameterne samtidig.</p>`;
+            <p class="note">−ln(1.0) = 0 (perfekt), −ln(0.5) ≈ 0.69, −ln(0.1) ≈ 2.3 – straffen vokser
+            bratt jo sikrere modellen var på feil ting. Kalles cross-entropy.</p>` : ""}
+          <p class="note">Nå har vi ett tall for hvor dårlig hele modellen var. Neste steg er selve
+          magien: å bruke det til å forbedre alle parameterne samtidig.</p>`;
       },
     },
 
     {
       id: "backprop",
-      title: "Steg 7 · Backpropagation – læringen skjer baklengs",
+      title: "Backpropagation – læringen skjer baklengs",
       diagram: ["dg-emb", "dg-layer", "dg-attn", "dg-ffn", "dg-logits", "dg-softmax"],
       backward: true,
       render() {
@@ -323,8 +340,6 @@
         const g = m.backward(tr, TARGET);
         const changed = m.countNonzeroGrads(g);
         const total = m.paramCounts().total;
-        // Vis parameteren med størst gradient i hver del av modellen,
-        // så tabellen alltid har levende tall.
         const maxAbs = (M, G) => {
           let bi = 0, bj = 0;
           for (let i = 0; i < G.length; i++)
@@ -348,41 +363,37 @@
         ];
         const applied = ML.state.bpJustApplied;
         return `
-          <p class="lede">Nå går vi <b>baklengs</b> gjennom hele modellen – se de røde pilene i
-          diagrammet. For hver eneste parameter regnes en <b>gradient</b>: et tall som svarer på</p>
-          <p style="text-align:center;font-size:17px"><i>«Hvis akkurat denne parameteren var litt
+          <p class="lede">Nå går vi <b>baklengs</b> gjennom modellen – se de røde pilene i
+          diagrammet. For hver parameter regnes en <b>gradient</b>: et tall som svarer på</p>
+          <p style="text-align:center;font-size:16.5px"><i>«Hvis akkurat denne parameteren var litt
           annerledes – ville svaret blitt bedre eller verre?»</i></p>
-          <p>Dette er ikke prøving og feiling: gradienten regnes eksakt, med kjerneregelen fra
-          matematikk, bakover gjennom softmax → output → feed-forward → attention → embeddinger.
-          Så flyttes hver parameter et lite hakk i sin beste retning:</p>
-          <div class="mathline" style="text-align:center">ny verdi = gammel verdi − ${LR} · gradient
-            <span class="note">(${LR} er «læringsraten» – hvor store skritt vi tar)</span></div>
-
-          <table class="bp-table">
-            <tr><th>Parameter (utvalg)</th><th>Verdi nå</th><th>Gradient</th><th>Etter oppdatering</th></tr>
-            ${picks.map((p) => `
-              <tr class="${applied ? "flash" : ""}">
-                <td class="name">${p.name}<br><span class="note">${p.sub}</span></td>
-                <td>${R().fmt(p.val, 3)}</td>
-                <td class="gradval">${R().fmt(p.grad, 3)}</td>
-                <td class="newval">${R().fmt(p.val - LR * p.grad, 3)}</td>
-              </tr>`).join("")}
-          </table>
-          <p class="note">⚠️ Tabellen viser bare 5 av parameterne. I dette steget får
-          <b>${changed} av ${total}</b> parametere en gradient ≠ 0 og justeres <b>samtidig</b>
-          (de øvrige, f.eks. embeddingen til ord som ikke var med i setningen, står stille).
-          I en ekte modell justeres milliarder av parametere i hvert eneste steg.</p>
-          ${applied
-            ? `<p><b style="color:var(--good)">✅ Oppdatert!</b> Alle parameterne har flyttet seg et lite hakk.
-               Gå til neste steg og se om modellen ble bedre.</p>`
-            : `<button class="btn accent big" id="bp-apply">✨ Kjør oppdateringen (gradient descent)</button>`}
-          ${R().disclosure("🔢 Hvor kommer gradientene fra?", `
-            <p>Første ledd er alltid det samme, og det er vakkert enkelt:
-            <b>gradienten på logitene = sannsynlighetene − fasiten.</b></p>
+          <p>Så flyttes hver parameter et lite hakk i sin beste retning:</p>
+          <div class="mathline" style="text-align:center">ny verdi = gammel verdi − ${LR} · gradient</div>
+          ${lv(1) ? `
+            <table class="bp-table">
+              <tr><th>Parameter (utvalg)</th><th>Verdi nå</th><th>Gradient</th><th>Etter oppdatering</th></tr>
+              ${picks.map((p) => `
+                <tr class="${applied ? "flash" : ""}">
+                  <td class="name">${p.name}<br><span class="note">${p.sub}</span></td>
+                  <td>${R().fmt(p.val, 3)}</td>
+                  <td class="gradval">${R().fmt(p.grad, 3)}</td>
+                  <td class="newval">${R().fmt(p.val - LR * p.grad, 3)}</td>
+                </tr>`).join("")}
+            </table>` : ""}
+          <p class="note">Dette er ikke prøving og feiling – gradientene regnes eksakt, med
+          kjerneregelen fra matematikk. I dette steget justeres <b>${changed} av ${total}</b>
+          parametere <b>samtidig</b> (resten, f.eks. embeddingen til ord som ikke var med, står
+          stille). I en ekte modell: milliarder, i hvert eneste steg.</p>
+          ${lv(2) ? `
+            <p class="note"><b>Hvor starter gradientene?</b> Første ledd er vakkert enkelt:
+            gradienten på logitene = sannsynlighetene − fasiten:</p>
             <div class="mathline">${ML.VOCAB.map((w, i) => `d(${w}) = ${R().fmt(tr.probs[i], 2)} − ${i === TARGET ? 1 : 0} = <span class="res">${R().fmt(tr.probs[i] - (i === TARGET ? 1 : 0), 2)}</span>`).join("<br>")}</div>
-            <p class="note">Negativ gradient på «melk» betyr «skulle vært høyere», positiv på de andre
-            betyr «skulle vært lavere». Derfra sendes disse tallene baklengs gjennom nøyaktig de samme
-            regneoperasjonene som i fremoverpasset – bare derivert.</p>`)}`;
+            <p class="note">Negativt på «melk» = «skulle vært høyere». Derfra sendes tallene baklengs
+            gjennom de samme operasjonene som i fremoverpasset – bare derivert.</p>` : ""}
+          ${applied
+            ? `<p><b style="color:var(--good)">✅ Oppdatert!</b> Alle parameterne har flyttet seg et
+               lite hakk. Gå videre og se om modellen ble bedre.</p>`
+            : `<button class="btn accent big" id="bp-apply">Kjør oppdateringen (gradient descent)</button>`}`;
       },
       wire(host) {
         const btn = host.querySelector("#bp-apply");
@@ -402,7 +413,7 @@
 
     {
       id: "again",
-      title: "Steg 8 · Tren igjen og igjen … og se den lære",
+      title: "Tren igjen og igjen … og se den lære",
       diagram: ["dg-next"],
       render() {
         const m = ML.state.model;
@@ -412,12 +423,12 @@
         const hist = ML.state.history;
         const learned = p > 0.9;
         return `
-          <p class="lede">Én runde = liten forbedring. Ekte læring er bare denne løkka om igjen og om
-          igjen: <b>gjett → mål feilen → juster parameterne</b>. Prøv selv:</p>
+          <p class="lede">Ekte læring er bare denne løkka om igjen og om igjen:
+          <b>gjett → mål feilen → juster parameterne</b>. Prøv selv:</p>
           <div class="chiprow">
-            <button class="btn primary" data-train="1">▶ Tren 1 steg</button>
-            <button class="btn primary" data-train="10">⏩ Tren 10 steg</button>
-            <button class="btn primary" data-train="100">⏭ Tren 100 steg</button>
+            <button class="btn primary" data-train="1">Tren 1 steg</button>
+            <button class="btn primary" data-train="10">Tren 10 steg</button>
+            <button class="btn primary" data-train="100">Tren 100 steg</button>
             <span class="note">totalt trent: <b>${m.steps}</b> steg</span>
           </div>
           <div class="loss-hero">
@@ -430,18 +441,16 @@
               <div class="bignum-cap">loss</div>
             </div>
           </div>
-          ${R().probBars(tr.probs, { correctIdx: TARGET })}
+          ${lv(1) ? R().probBars(tr.probs, { correctIdx: TARGET }) : ""}
           <div class="spark-cap">P(«melk») gjennom treningen:</div>
           ${R().sparkline(hist.map((h) => h.p), { max: 1, color: "var(--good)" })}
           <div class="spark-cap">Loss gjennom treningen:</div>
           ${R().sparkline(hist.map((h) => h.loss), { color: "var(--bad)" })}
-          <p class="note">Alt du ser er de samme 60 parameterne som flyttes bittelitt hver runde –
-          ingen regler er programmert inn, ingen ordbok, bare gradient descent.</p>
           ${learned
-            ? `<p><b style="color:var(--good)">🎉 Modellen har lært det!</b> Den er ikke lenger i tvil om
-               hva katten drikker. På tide å <b>bruke</b> den – der er reglene helt annerledes.</p>
-               <button class="btn accent big pulse" id="goto-use">▶️ Gå til «Bruk modellen»</button>`
-            : `<p class="note">💡 Tren til «melk» passerer 90 % – da låser vi modellen og tar den i bruk.</p>`}`;
+            ? `<p><b style="color:var(--good)">🎉 Modellen har lært det!</b> På tide å <b>bruke</b>
+               den – der er reglene helt annerledes.</p>
+               <button class="btn accent big pulse" id="goto-use">Gå til «Bruk modellen» →</button>`
+            : `<p class="note">Tren til «melk» passerer 90 % – da låser vi modellen og tar den i bruk.</p>`}`;
       },
       wire(host) {
         host.querySelectorAll("[data-train]").forEach((b) =>
@@ -467,7 +476,7 @@
     const host = document.getElementById("content");
     const i = ML.state.stepIdx;
     const step = steps[i];
-    const kicker = i === 0 ? "Treningsmodus" : `Treningsmodus · ${i} av ${steps.length - 1}`;
+    const kicker = i === 0 ? "Treningsmodus" : `Treningsmodus · steg ${i} av ${steps.length - 1}`;
     host.innerHTML = `
       <div class="card">
         <div class="step-kicker">${kicker}</div>

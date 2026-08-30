@@ -6,11 +6,27 @@
     model: new ML.TinyLM(42),
     mode: "train",
     stepIdx: 0,
+    level: 0, // 0 = Enkelt, 1 = Med tall, 2 = Full utregning
     history: [],
     qkvTab: "q",
     bpJustApplied: false,
     use: null,
   };
+
+  const LEVELS = ["Enkelt", "Med tall", "Utregning"];
+  function renderLevelSwitch() {
+    const el = document.getElementById("level-switch");
+    el.innerHTML = LEVELS.map(
+      (name, i) => `<button class="level-btn ${ML.state.level === i ? "active" : ""}" data-level="${i}">${name}</button>`
+    ).join("");
+    el.querySelectorAll("[data-level]").forEach((b) =>
+      b.addEventListener("click", () => {
+        ML.state.level = Number(b.dataset.level);
+        renderLevelSwitch();
+        render();
+      })
+    );
+  }
 
   function render() {
     if (ML.state.mode === "train") ML.renderTrain();
@@ -51,5 +67,6 @@
 
   ML.diagram.build(document.getElementById("diagram"));
   ML.recordEval(); // loggfør utgangspunktet (steg 0) i historikken
+  renderLevelSwitch();
   render();
 })();

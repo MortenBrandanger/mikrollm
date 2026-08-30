@@ -99,5 +99,10 @@
     </svg>`;
   }
 
-  ML.R = { fmt, pct, vecHTML, matHTML, dotCalc, vecMatCalc, tokenChip, probBars, disclosure, sparkline };
+  // Sammenleggbart ærlighetsnotat – én stille linje i stedet for en boks.
+  function honest(text) {
+    return `<details class="honest"><summary>🌍 I en ekte LLM …</summary><p>${text}</p></details>`;
+  }
+
+  ML.R = { fmt, pct, vecHTML, matHTML, dotCalc, vecMatCalc, tokenChip, probBars, disclosure, sparkline, honest };
 })();
