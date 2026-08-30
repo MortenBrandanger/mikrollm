@@ -28,6 +28,8 @@ Treningseksempelet er «katten drikker» → «melk», vokabular på 5 ord.
 Siden kjører på **https://mikrollm.vercel.app** (og på
 [GitHub Pages](https://mortenbrandanger.github.io/mikrollm/)).
 
+[![MikroLLM](docs/skjermbilde.jpg)](https://mikrollm.vercel.app)
+
 ## Kjøre lokalt
 
 Ingen byggesteg, ingen avhengigheter. Åpne `index.html` direkte, eller:
