@@ -75,6 +75,7 @@
     {
       id: "frozen",
       title: "Modellen er frosset",
+      levels: false,
       sub: "fra nå av endres ingenting",
       diagram: [],
       render() {
@@ -108,7 +109,10 @@
             <span class="arrow-inline">→</span>
             ${u.ctx.map((t) => R().tokenChip(W(t), t)).join(" ")}
           </div>
-          <p>Nøyaktig som i treningen: deterministisk oppslag, ingen parametere involvert.</p>`;
+          <p>Nøyaktig som i treningen: deterministisk oppslag, ingen parametere involvert.</p>
+          ${lv(1) ? `
+            <p class="note">Hele vokabularet med numrene sine:</p>
+            <div class="chiprow">${ML.VOCAB.map((w, i) => R().tokenChip(w, i)).join(" ")}</div>` : ""}`;
       },
     },
 
@@ -135,9 +139,15 @@
               </div>`).join("")}
           </div>
           ${lv(1) ? `
-            <p class="note">Pluss posisjonsvektor, som før:</p>
-            ${u.ctx.map((t, i) => `<div class="mathline">x<sub>${W(t)}</sub> = E[${W(t)}] + P[${i}] =
-              ${R().vecHTML(m.E[t], "param")} + ${R().vecHTML(m.P[i], "param")} = ${R().vecHTML(t0.x[i], "data")}</div>`).join("")}` : ""}`;
+            <p class="note">Og som i treningen legges posisjonsvektoren til, så modellen vet
+            rekkefølgen:</p>
+            ${u.ctx.map((t, i) => R().sumRow([
+              { vec: m.E[t], cls: "param", cap: `embedding for «${W(t)}» (lært)` },
+              "+",
+              { vec: m.P[i], cls: "param", cap: `posisjon: plass ${i} (lært)` },
+              "=",
+              { vec: t0.x[i], cls: "data", cap: `«${W(t)}» slik den flyter videre` },
+            ])).join("")}` : ""}`;
       },
     },
 
@@ -292,6 +302,7 @@
     {
       id: "bigpicture",
       title: "Det store bildet",
+      levels: false,
       sub: "trening og bruk, side om side",
       diagram: [],
       render() {
@@ -429,6 +440,7 @@
       </div>`;
     ML.diagram.highlight(step.diagram);
     ML.diagram.setBackward(false);
+    ML.R.setLevelSwitchEnabled(step.levels !== false);
     const gotoTrain = host.querySelector("#goto-train");
     if (gotoTrain) gotoTrain.addEventListener("click", () => ML.setMode("train"));
     if (step.wire) step.wire(host);

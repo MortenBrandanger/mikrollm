@@ -35,6 +35,7 @@
     {
       id: "goal",
       title: "Oppdraget",
+      levels: false,
       sub: "lær en ekte (bitteliten) språkmodell én ting",
       diagram: ["dg-text"],
       render() {
@@ -128,10 +129,13 @@
           <p class="lede">En transformer ser alle tokens <b>samtidig</b> og aner ikke rekkefølgen av
           seg selv – den må kunne skille «katten drikker» fra «drikker katten». Derfor får hver plass
           i setningen sin egen lærte <b>posisjonsvektor</b>, som legges til:</p>
-          ${lv(1) ? EX_TOKENS.map((t, i) => `
-            <div class="mathline">x<sub>${W(t)}</sub> = E[${W(t)}] + P[plass ${i}] =
-              ${R().vecHTML(m.E[t], "param")} + ${R().vecHTML(m.P[i], "param")}
-              = ${R().vecHTML(tr.x[i], "data")}</div>`).join("")
+          ${lv(1) ? EX_TOKENS.map((t, i) => R().sumRow([
+              { vec: m.E[t], cls: "param", cap: `embedding for «${W(t)}» (lært)` },
+              "+",
+              { vec: m.P[i], cls: "param", cap: `posisjon: plass ${i} (lært)` },
+              "=",
+              { vec: tr.x[i], cls: "data", cap: `«${W(t)}» slik den flyter videre` },
+            ])).join("")
           : `<div class="mathline" style="text-align:center">x = embedding + posisjonsvektor</div>`}
           ${calc(EX_TOKENS.map((t, i) => `
             <div class="mathline note">x<sub>${W(t)}</sub>[0] = ${R().fmt(m.E[t][0])} + ${R().fmt(m.P[i][0])} = <span class="res">${R().fmt(tr.x[i][0])}</span>
@@ -539,6 +543,7 @@
       </div>`;
     ML.diagram.highlight(step.diagram);
     ML.diagram.setBackward(!!step.backward);
+    ML.R.setLevelSwitchEnabled(step.levels !== false);
     if (step.wire) step.wire(host);
     ML.state.maxTrainStep = Math.max(ML.state.maxTrainStep || 0, i);
     const goto = (j) => {

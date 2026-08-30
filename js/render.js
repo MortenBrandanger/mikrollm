@@ -99,6 +99,17 @@
     </svg>`;
   }
 
+  // Merket regnestykke: hver tallboks får en bildetekst som sier hva den ER.
+  // parts: {vec, cls, cap} for en boks, eller en streng ("+", "=") som operator.
+  function sumRow(parts) {
+    const inner = parts.map((p) =>
+      typeof p === "string"
+        ? `<span class="sumop">${p}</span>`
+        : `<span class="sumitem">${vecHTML(p.vec, p.cls)}<div class="sumcap">${p.cap}</div></span>`
+    ).join("");
+    return `<div class="sumrow">${inner}</div>`;
+  }
+
   // Fast navigasjonslinje nederst på skjermen – samme sted uansett steg.
   // Prikkene er klikkbare (til allerede besøkte steg) og viser stegtittel som tooltip.
   function renderNav(opts) {
@@ -139,5 +150,15 @@
     return `<details class="honest"><summary>🌍 I en ekte LLM …</summary><p>${text}</p></details>`;
   }
 
-  ML.R = { fmt, pct, vecHTML, matHTML, dotCalc, vecMatCalc, tokenChip, probBars, disclosure, sparkline, honest, renderNav };
+  // Dim nivåbryteren på steg som ikke har flere tall å vise – da er det
+  // aldri et mysterium hvorfor «ingenting skjedde» ved bytte.
+  function setLevelSwitchEnabled(on) {
+    const el = document.getElementById("level-switch");
+    el.classList.toggle("disabled", !on);
+    el.title = on
+      ? "Hvor dypt vil du gå? Du kan bytte når som helst."
+      : "Dette steget er rent konseptuelt – her er det ingen flere tall å vise.";
+  }
+
+  ML.R = { fmt, pct, vecHTML, matHTML, dotCalc, vecMatCalc, tokenChip, probBars, disclosure, sparkline, honest, renderNav, sumRow, setLevelSwitchEnabled };
 })();
