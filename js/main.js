@@ -14,6 +14,38 @@
     use: null,
   };
 
+  // Treningen skal overleve at siden lastes på nytt: parametere og
+  // historikk lagres i localStorage etter hvert treningssteg.
+  const STORE_KEY = "mikrollm-v1";
+  ML.saveModel = function () {
+    try {
+      const m = ML.state.model;
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        E: m.E, P: m.P, Wq: m.Wq, Wk: m.Wk, Wv: m.Wv, Wo: m.Wo,
+        W1: m.W1, W2: m.W2, Wu: m.Wu, steps: m.steps,
+        history: ML.state.history,
+      }));
+    } catch (e) { /* privat modus e.l. – da lever modellen bare i fanen */ }
+  };
+  function loadModel() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return false;
+      const d = JSON.parse(raw);
+      const m = ML.state.model;
+      for (const k of ["E", "P", "Wq", "Wk", "Wv", "Wo", "W1", "W2", "Wu"]) {
+        if (!Array.isArray(d[k])) return false;
+        m[k] = d[k];
+      }
+      m.steps = d.steps || 0;
+      ML.state.history = Array.isArray(d.history) ? d.history : [];
+      return ML.state.history.length > 0;
+    } catch (e) { return false; }
+  }
+  ML.clearSavedModel = function () {
+    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+  };
+
   const LEVELS = ["Enkelt", "Med tall", "Utregning"];
   function renderLevelSwitch() {
     const el = document.getElementById("level-switch");
@@ -47,6 +79,7 @@
   document.getElementById("tab-use").addEventListener("click", () => ML.setMode("use"));
 
   document.getElementById("reset-btn").addEventListener("click", () => {
+    ML.clearSavedModel();
     ML.state.model.init(42);
     ML.state.history = [];
     ML.recordEval();
@@ -68,7 +101,7 @@
   });
 
   ML.diagram.build(document.getElementById("diagram"));
-  ML.recordEval(); // loggfør utgangspunktet (steg 0) i historikken
+  if (!loadModel()) ML.recordEval(); // fersk modell: loggfør utgangspunktet
   renderLevelSwitch();
   render();
 })();

@@ -404,6 +404,7 @@
             const g = m.backward(tr, TARGET);
             m.applyGrads(g, LR);
             recordEval();
+            ML.saveModel();
             ML.state.bpJustApplied = true;
             renderTrain();
             ML.inspector.render();
@@ -460,6 +461,7 @@
               ML.state.model.trainStep(EX_TOKENS, TARGET, LR);
               recordEval();
             }
+            ML.saveModel();
             renderTrain();
             ML.inspector.render();
           })

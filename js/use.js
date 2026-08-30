@@ -66,17 +66,15 @@
       diagram: [],
       render() {
         const m = ML.state.model;
-        const trained = ML.state.history.length > 1;
         return `
           <div class="frozen-banner">
             <span class="big">🔒</span>
             <div>PARAMETERE FROSSET<br>
-            <span style="font-weight:400;font-size:13.5px">Modellen er ferdig trent (${m.steps} steg).
-            Fra nå av leses parameterne bare – ingenting endres, uansett hvor mye vi bruker den.</span></div>
+            <span style="font-weight:400;font-size:13.5px">${m.steps > 0
+              ? `Modellen er ferdig trent (${m.steps} steg).`
+              : "Modellen er som den er."} Fra nå av leses parameterne bare – ingenting endres,
+            uansett hvor mye vi bruker den.</span></div>
           </div>
-          ${trained ? "" : `<p style="padding:10px 14px;border-radius:10px;background:#fffaf0;border:1.5px solid #e7c78a">
-            ⚠️ <b>Du har ikke trent modellen ennå</b> – den vil gjette i blinde. Lov å prøve likevel,
-            men treningsmodusen er et bedre sted å starte.</p>`}
           <p class="lede">Å <i>bruke</i> modellen – det som skjer når du chatter med en LLM – er samme
           maskin som i treningen. Forskjellen er hva som skjer etter prediksjonen:</p>
           <div class="compare">
@@ -236,6 +234,7 @@
           <p class="lede">Før softmax deles alle logitene på <b>temperaturen</b>. Rekkefølgen endres
           aldri – bare hvor <i>bastant</i> fordelingen blir. Dra og se:</p>
           ${tempRow("temp")}
+          <p style="margin-bottom:2px"><b>Hva tror modellen kommer etter «${ctxText()}»?</b></p>
           <div id="temp-bars">${R().probBars(probs)}</div>
           <p class="note" id="temp-hint">${tempHint(u.temp)}</p>
           ${lv(1) ? `<div class="mathline">P(ord) = e^(logit/τ) / sum av alle e^(logit/τ)</div>` : ""}
@@ -278,6 +277,7 @@
           </div>
 
           ${tempRow("play")}
+          <p style="margin-bottom:2px"><b>Hva tror modellen kommer etter «${ctxText()}»?</b></p>
           <div id="play-bars">${R().probBars(probs, { sampledIdx: u.sampled })}</div>
 
           <div class="sample-stage">
@@ -344,7 +344,14 @@
     const host = document.getElementById("content");
     const i = Math.min(ML.state.useStepIdx ?? 0, steps.length - 1);
     const step = steps[i];
+    const untrained = ML.state.model.steps === 0;
     host.innerHTML = `
+      ${untrained ? `
+        <div class="card" style="border-color:#e7c78a;background:#fffaf0;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 22px">
+          <span style="flex:1;min-width:220px">⚠️ <b>Modellen er ikke trent ennå</b> – alle tall du
+          ser her er tilfeldig gjetting. Den kan ikke noe før du har trent den.</span>
+          <button class="btn primary" id="goto-train">🎓 Gå til treningen</button>
+        </div>` : ""}
       <div class="card">
         <div class="step-kicker">Bruksmodus · steg ${i + 1} av ${steps.length}</div>
         <h2>${step.title}</h2>
@@ -359,6 +366,8 @@
       </div>`;
     ML.diagram.highlight(step.diagram);
     ML.diagram.setBackward(false);
+    const gotoTrain = host.querySelector("#goto-train");
+    if (gotoTrain) gotoTrain.addEventListener("click", () => ML.setMode("train"));
     if (step.wire) step.wire(host);
     host.querySelector("#nav-prev").addEventListener("click", () => {
       ML.state.useStepIdx = Math.max(0, i - 1);
