@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MikroLLM – den bittelille språkmodellen</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-emoji">🐱</span>
+      <div>
+        <div class="brand-name">MikroLLM</div>
+        <div class="brand-sub">en ekte transformer med 60 parametere</div>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button id="tab-train" class="tab active">🎓 1 · Tren modellen</button>
+      <button id="tab-use" class="tab">▶️ 2 · Bruk modellen</button>
+    </nav>
+    <button id="reset-btn" class="btn ghost" title="Nullstill alle parametere til tilfeldige startverdier">↺ Nullstill modellen</button>
+  </header>
+
+  <div class="layout">
+    <main id="content"></main>
+    <aside class="side">
+      <section class="panel">
+        <h3 class="panel-title">Arkitekturen</h3>
+        <div id="diagram"></div>
+      </section>
+      <section class="panel">
+        <h3 class="panel-title">Hva er inni modellen vår?</h3>
+        <div id="inspector"></div>
+      </section>
+    </aside>
+  </div>
+
+  <footer class="foot">
+    <details>
+      <summary>🔍 Ærlighetsnotat: hva er forenklet – og hva er ekte?</summary>
+      <div class="foot-body">
+        <p><strong>Ekte:</strong> alt du ser regnet ut her er den faktiske mekanismen i en transformer:
+        embeddings + posisjonsvektorer, attention med ekte Q/K/V-projeksjoner (q·k/√d, softmax, veid sum av V, W<sub>O</sub>),
+        residualkoblinger, feed-forward med ReLU, logits, softmax, cross-entropy-loss og ekte backpropagation
+        (gradientene her er matematisk korrekte, verifisert mot numerisk derivasjon).</p>
+        <p><strong>Forenklet i størrelse, ikke i struktur:</strong> 2 dimensjoner i stedet for tusenvis,
+        1 lag i stedet for titalls, 1 attention-hode i stedet for mange, 5 ord i vokabularet i stedet for ~100&nbsp;000.</p>
+        <p><strong>Utelatt:</strong> LayerNorm/RMSNorm (normalisering som stabiliserer trening i store modeller – endrer ikke mekanismen),
+        biases (moderne modeller som Llama dropper også disse), dropout, og optimalisereren Adam (vi bruker enklere SGD).
+        Ekte tokenisering deler dessuten ord i mindre biter (subord); her er 1 ord = 1 token for lesbarhet.</p>
+      </div>
+    </details>
+    <div class="foot-line">Laget for læring · alt regnes live i nettleseren din · ingen server</div>
+  </footer>
+
+  <script src="js/model.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/diagram.js"></script>
+  <script src="js/inspector.js"></script>
+  <script src="js/train.js"></script>
+  <script src="js/use.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
