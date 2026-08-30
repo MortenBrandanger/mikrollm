@@ -23,7 +23,11 @@ biases, dropout, Adam.
 
 Treningseksempelet er «katten drikker» → «melk», vokabular på 5 ord.
 
-## Kjøre
+## Prøv den
+
+Siden kjører på **https://mortenbrandanger.github.io/mikrollm/**
+
+## Kjøre lokalt
 
 Ingen byggesteg, ingen avhengigheter. Åpne `index.html` direkte, eller:
 
@@ -41,3 +45,8 @@ python3 -m http.server 8123
 - `js/train.js` – treningsmodusen, steg for steg
 - `js/use.js` – bruksmodusen: frosne parametere, temperatur og sampling
 - `js/main.js` – oppstart og modusbytte
+
+## Bidrag og lisens
+
+Dette er et personlig læringsprosjekt – jeg tar ikke imot bidrag for øyeblikket,
+men fork gjerne og lek videre! Koden er [MIT-lisensiert](LICENSE).
