@@ -252,6 +252,51 @@
     },
 
     {
+      id: "sampling",
+      title: "Sampling – terningkastet til slutt",
+      diagram: ["dg-sampling", "dg-next"],
+      render() {
+        const u = ensureState();
+        const t0 = tr();
+        const probs = ML.softmax(t0.logits, u.temp);
+        return `
+          <p class="lede">Til slutt velges neste token. Modellen tar <b>ikke</b> automatisk ordet med
+          høyest sannsynlighet – den <b>trekker</b> tilfeldig, der hvert ord har så stor sjanse som
+          sannsynligheten sin. Som et lykkehjul.</p>
+          <p style="margin-bottom:2px"><b>Hva tror modellen kommer etter «${ctxText()}»?</b></p>
+          ${R().probBars(probs, { sampledIdx: u.sampled })}
+          <div class="sample-stage">
+            <button class="btn accent big" id="sample-btn">🎲 Trekk neste token</button>
+            ${u.sampled !== null ? `
+              <div class="sample-result">
+                <span class="note">r = ${R().fmt(u.draw, 3)} →</span>
+                <span class="sample-token">${W(u.sampled)}</span>
+              </div>` : ""}
+          </div>
+          ${u.sampled !== null ? `
+            <p class="note">Trekk gjerne flere ganger – med nok forsøk kan også de usannsynlige
+            ordene dukke opp. Det er derfor en LLM ikke svarer likt hver gang.</p>
+            ${lv(1) ? sampleExplain(probs, u.draw) : ""}` : ""}`;
+      },
+      wire(host) {
+        const u = ensureState();
+        const t0 = tr();
+        host.querySelector("#sample-btn").addEventListener("click", () => {
+          const p = ML.softmax(t0.logits, u.temp);
+          const r = Math.random();
+          let acc = 0, pick = p.length - 1;
+          for (let i = 0; i < p.length; i++) {
+            acc += p[i];
+            if (r < acc) { pick = i; break; }
+          }
+          u.sampled = pick;
+          u.draw = r;
+          renderUse(false);
+        });
+      },
+    },
+
+    {
       id: "play",
       title: "Lekeplassen – la modellen skrive 🎲",
       diagram: ["dg-sampling", "dg-next"],
@@ -260,9 +305,8 @@
         const t0 = tr();
         const probs = ML.softmax(t0.logits, u.temp);
         return `
-          <p class="lede">Modellen velger ikke automatisk det mest sannsynlige ordet – den
-          <b>trekker</b> fra fordelingen, som et lykkehjul der hvert ord eier en bit så stor som
-          sannsynligheten sin. Derfor kan samme spørsmål gi ulike svar.</p>
+          <p class="lede">Du kan alt nå. Bygg din egen tekst, still temperaturen og la modellen
+          fortsette den – token for token.</p>
 
           <p><b>Teksten så langt</b> (maks ${ML.MAXPOS} tokens):</p>
           <div class="chiprow">
@@ -293,8 +337,7 @@
               ${u.ctx.length < ML.MAXPOS
                 ? `<button class="btn primary" id="accept-btn">Legg til i teksten og fortsett →</button>`
                 : `<span class="note">Kontekstvinduet på ${ML.MAXPOS} tokens er fullt – ekte modeller har samme grense, bare mye større.</span>`}
-            </div>
-            ${lv(1) ? sampleExplain(probs, u.draw) : ""}` : ""}`;
+            </div>` : ""}`;
       },
       wire(host) {
         const u = ensureState();
